@@ -117,7 +117,7 @@
     <div class="tab" data-tab="packages" onclick="switchTab('packages')">Packages</div>
     <div class="tab" data-tab="menu" onclick="switchTab('menu')">Package menu</div>
     <div class="tab" data-tab="orders" onclick="switchTab('orders')">Orders</div>
-    <div class="tab" data-tab="services" onclick="switchTab('services')">Services</div>
+    <div class="tab" data-tab="services" onclick="switchTab('services')">Single courses</div>
     <div class="tab" data-tab="slots" onclick="switchTab('slots')">Time slots</div>
   </div>
 
@@ -180,25 +180,28 @@
   <!-- PACKAGE MENU(方案菜單,首頁展示用) -->
   <div id="tab-menu" class="hidden">
     <div class="panel">
-      <span class="eyebrow">Add / edit package option</span>
-      <h2 style="font-size:1.6rem;margin-bottom:1rem;" id="pm-form-title">Add a package option</h2>
+      <span class="eyebrow">Add / edit package (套組)</span>
+      <h2 style="font-size:1.6rem;margin-bottom:1rem;" id="pm-form-title">Add a package</h2>
       <input type="hidden" id="pm-row" />
-      <label>Package name</label><input type="text" id="pm-name" placeholder="10-Session Package" />
+      <label>Package name</label><input type="text" id="pm-name" placeholder="Starter Bundle" />
       <div class="row3">
-        <div><label>Sessions</label><input type="number" id="pm-sessions" min="1" placeholder="10" /></div>
-        <div><label>Price (£)</label><input type="number" id="pm-price" min="0" placeholder="620" /></div>
-        <div><label>Validity label</label><input type="text" id="pm-valid" placeholder="Valid 6 months" /></div>
+        <div><label>Price (£)</label><input type="number" id="pm-price" min="0" placeholder="450" /></div>
+        <div><label>Valid days</label><input type="number" id="pm-validdays" min="1" placeholder="90" /></div>
+        <div><label>Validity label</label><input type="text" id="pm-valid" placeholder="Valid 3 months" /></div>
       </div>
-      <label>Short description</label><input type="text" id="pm-desc" placeholder="Best value for regular practice" />
+      <label>Short description</label><input type="text" id="pm-desc" placeholder="Private ×5 + Gyrokinesis ×3" />
+      <label>Included single courses</label>
+      <div id="pm-items"></div>
+      <button class="btn btn--sm" type="button" onclick="addPmItem()" style="margin:0 0 1rem;">+ Add a course</button>
       <div style="display:flex;gap:.6rem;">
-        <button class="btn btn--solid" id="pm-save" onclick="savePackageProduct()">Save option</button>
+        <button class="btn btn--solid" id="pm-save" onclick="savePackageProduct()">Save package</button>
         <button class="btn hidden" id="pm-cancel" onclick="resetPmForm()">Cancel</button>
       </div>
       <div class="status" id="pm-status"></div>
-      <p class="muted" style="font-size:.8rem;margin-top:.6rem;">這些方案會顯示在官網首頁,供客戶瀏覽/洽詢。實際購買在工作室完成後,再到「Packages」分頁把套餐指派給該會員。</p>
+      <p class="muted" style="font-size:.8rem;margin-top:.6rem;">套組由多個「單堂課程 + 堂數」組成(課程在「Single courses」分頁建立)。客戶購買套組後,每個單堂課程各自入點;預約時分別選用扣點。</p>
     </div>
     <div class="panel">
-      <span class="eyebrow">Current package options</span>
+      <span class="eyebrow">Current packages</span>
       <div id="pm-list" style="margin-top:.6rem;"><p class="muted">Loading…</p></div>
     </div>
   </div>
@@ -216,7 +219,7 @@
   <!-- SERVICES -->
   <div id="tab-services" class="hidden">
     <div class="panel">
-      <span class="eyebrow" id="svc-form-title">Add a service</span>
+      <span class="eyebrow" id="svc-form-title">Add a single course</span>
       <input type="hidden" id="svc-row" /><input type="hidden" id="svc-id" />
       <label>Name</label><input type="text" id="svc-name" placeholder="Private Gyrotonic session" />
       <label>Description</label><input type="text" id="svc-desc" placeholder="60-minute one-to-one session" />
@@ -231,7 +234,7 @@
       <div class="status" id="svc-status"></div>
     </div>
     <div class="panel">
-      <span class="eyebrow">Current services</span>
+      <span class="eyebrow">Single courses</span>
       <div id="svc-list" style="margin-top:.6rem;"><p class="muted">Loading…</p></div>
     </div>
   </div>
@@ -407,33 +410,59 @@ async function savePackage(){
 async function deletePkg(rowNum){ if(!confirm("Delete this package?")) return;
   try{ const d=await api({action:"adminDeletePackage",token,rowNum}); if(d.success){ toast("Deleted"); loadPackages(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
 
-// ── package menu(方案菜單,首頁展示用) ──
+// ── packages(套組:多單堂組合) ──
+let pmCourses = [];   // 單堂課程清單(供下拉)
 async function loadPackageProducts(){
-  try{ const d=await api({action:"adminListPackageProducts",token}); renderPackageProducts(d.products||[]); }
-  catch(e){ $("pm-list").innerHTML='<p class="muted">Could not load.</p>'; }
+  try{
+    const cs=await api({action:"adminListServices",token}); pmCourses=(cs&&cs.services)||[];
+    const d=await api({action:"adminListPackageProducts",token}); renderPackageProducts(d.products||[]);
+    if(!document.querySelector("#pm-items .pm-item")) addPmItem();
+  }catch(e){ $("pm-list").innerHTML='<p class="muted">Could not load.</p>'; }
+}
+function courseOptions(selId){
+  if(!pmCourses.length) return '<option value="">(no single courses — add some first)</option>';
+  return pmCourses.map(c=>`<option value="${c.id}"${String(c.id)===String(selId)?" selected":""}>${c.name||""} (${CURRENCY}${c.price})</option>`).join("");
+}
+function addPmItem(courseId,qty){
+  const wrap=document.createElement("div"); wrap.className="pm-item"; wrap.style.cssText="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:center;";
+  wrap.innerHTML='<select class="pm-course" style="flex:1;margin:0;">'+courseOptions(courseId)+'</select>'+
+    '<input class="pm-qty" type="number" min="1" value="'+(qty||1)+'" style="width:90px;margin:0;" />'+
+    '<button class="btn btn--sm btn--danger" type="button" onclick="this.parentNode.remove()">×</button>';
+  $("pm-items").appendChild(wrap);
+}
+function collectPmItems(){
+  return Array.from(document.querySelectorAll("#pm-items .pm-item")).map(row=>({
+    course_id: row.querySelector(".pm-course").value, qty: Number(row.querySelector(".pm-qty").value)||0
+  })).filter(it=>it.course_id && it.qty>0);
 }
 function renderPackageProducts(list){
-  if(!list.length){ $("pm-list").innerHTML='<p class="muted">No package options yet.</p>'; return; }
-  $("pm-list").innerHTML='<table><thead><tr><th>Name</th><th>Sessions</th><th>Price</th><th>Validity</th><th></th></tr></thead><tbody>'+
-    list.map(p=>`<tr><td>${p.name||""}</td><td>${p.sessions}</td><td>${CURRENCY}${p.price}</td><td>${p.valid_label||""}</td>
-    <td style="white-space:nowrap;"><button class="btn btn--sm" onclick='editPm(${JSON.stringify(p)})'>Edit</button>
-    <button class="btn btn--sm btn--danger" onclick="deletePm('${p.rowNum}')">Del</button></td></tr>`).join("")+'</tbody></table>';
+  if(!list.length){ $("pm-list").innerHTML='<p class="muted">No packages yet.</p>'; return; }
+  $("pm-list").innerHTML='<table><thead><tr><th>Name</th><th>Includes</th><th>Price</th><th>Validity</th><th></th></tr></thead><tbody>'+
+    list.map(p=>{
+      const inc=(p.items||[]).map(it=>(it.course_name||"")+" ×"+it.qty).join(", ");
+      return `<tr><td>${p.name||""}</td><td>${inc}</td><td>${CURRENCY}${p.price}</td><td>${p.valid_label||(p.valid_days+"d")}</td>
+      <td style="white-space:nowrap;"><button class="btn btn--sm" onclick='editPm(${JSON.stringify(p)})'>Edit</button>
+      <button class="btn btn--sm btn--danger" onclick="deletePm('${p.rowNum}')">Del</button></td></tr>`;
+    }).join("")+'</tbody></table>';
 }
 function editPm(p){
-  $("pm-row").value=p.rowNum||""; $("pm-name").value=p.name||""; $("pm-sessions").value=p.sessions||"";
-  $("pm-price").value=p.price||""; $("pm-valid").value=p.valid_label||""; $("pm-desc").value=p.description||"";
-  $("pm-form-title").textContent="Edit package option"; $("pm-cancel").classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"});
+  $("pm-row").value=p.rowNum||""; $("pm-name").value=p.name||""; $("pm-price").value=p.price||"";
+  $("pm-validdays").value=p.valid_days||""; $("pm-valid").value=p.valid_label||""; $("pm-desc").value=p.description||"";
+  $("pm-items").innerHTML=""; (p.items&&p.items.length?p.items:[{}]).forEach(it=>addPmItem(it.course_id,it.qty));
+  $("pm-form-title").textContent="Edit package"; $("pm-cancel").classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"});
 }
-function resetPmForm(){ ["pm-row","pm-name","pm-sessions","pm-price","pm-valid","pm-desc"].forEach(i=>$(i).value=""); $("pm-form-title").textContent="Add a package option"; $("pm-cancel").classList.add("hidden"); setStatus("pm-status","",""); }
+function resetPmForm(){ ["pm-row","pm-name","pm-price","pm-validdays","pm-valid","pm-desc"].forEach(i=>$(i).value=""); $("pm-items").innerHTML=""; addPmItem(); $("pm-form-title").textContent="Add a package"; $("pm-cancel").classList.add("hidden"); setStatus("pm-status","",""); }
 async function savePackageProduct(){
+  const items=collectPmItems();
   const product={ rowNum:$("pm-row").value||undefined, name:$("pm-name").value.trim(),
-    sessions:Number($("pm-sessions").value)||0, price:Number($("pm-price").value)||0,
-    valid_label:$("pm-valid").value.trim(), description:$("pm-desc").value.trim() };
+    price:Number($("pm-price").value)||0, valid_days:Number($("pm-validdays").value)||0,
+    valid_label:$("pm-valid").value.trim(), description:$("pm-desc").value.trim(), items:items };
   if(!product.name) return setStatus("pm-status","Package name is required","err");
+  if(!items.length) return setStatus("pm-status","Add at least one course with a quantity","err");
   const b=$("pm-save"); b.disabled=true; b.textContent="Saving…";
   try{ const d=await api({action:"adminSavePackageProduct",token,product});
     if(d.success){ toast("Saved"); resetPmForm(); loadPackageProducts(); } else setStatus("pm-status",d.error||"Save failed","err"); }catch(e){ setStatus("pm-status","Connection failed","err"); }
-  b.disabled=false; b.textContent="Save option";
+  b.disabled=false; b.textContent="Save package";
 }
 async function deletePm(rowNum){ if(!confirm("Delete this package option?")) return;
   try{ const d=await api({action:"adminDeletePackageProduct",token,rowNum}); if(d.success){ toast("Deleted"); loadPackageProducts(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
@@ -474,8 +503,8 @@ function renderServices(){
     <div style="white-space:nowrap;"><button class="btn btn--sm" onclick="editSvc(${i})">Edit</button>
     <button class="btn btn--sm btn--danger" onclick="deleteSvc(${i})">Del</button></div></div>`).join("");
 }
-function editSvc(i){ const s=services[i]; $("svc-row").value=s.rowNum||""; $("svc-id").value=s.id||""; $("svc-name").value=s.name||""; $("svc-desc").value=s.description||""; $("svc-price").value=s.price||""; $("svc-duration").value=s.duration_min||""; $("svc-form-title").textContent="Edit service"; $("svc-cancel").classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); }
-function resetSvcForm(){ ["svc-row","svc-id","svc-name","svc-desc","svc-price","svc-duration"].forEach(x=>$(x).value=""); $("svc-form-title").textContent="Add a service"; $("svc-cancel").classList.add("hidden"); setStatus("svc-status","",""); }
+function editSvc(i){ const s=services[i]; $("svc-row").value=s.rowNum||""; $("svc-id").value=s.id||""; $("svc-name").value=s.name||""; $("svc-desc").value=s.description||""; $("svc-price").value=s.price||""; $("svc-duration").value=s.duration_min||""; $("svc-form-title").textContent="Edit single course"; $("svc-cancel").classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); }
+function resetSvcForm(){ ["svc-row","svc-id","svc-name","svc-desc","svc-price","svc-duration"].forEach(x=>$(x).value=""); $("svc-form-title").textContent="Add a single course"; $("svc-cancel").classList.add("hidden"); setStatus("svc-status","",""); }
 async function saveService(){
   const name=$("svc-name").value.trim(); if(!name) return setStatus("svc-status","Name is required","err");
   const service={ rowNum:$("svc-row").value||undefined, id:$("svc-id").value||undefined, name, description:$("svc-desc").value.trim(), price:Number($("svc-price").value)||0, duration_min:Number($("svc-duration").value)||60, image_url:"" };

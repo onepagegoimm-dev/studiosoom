@@ -1,0 +1,14 @@
+# OS / 編輯器
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+
+# 機密(此公開 repo 絕不應出現以下檔案)
+TOKENS.md
+.env
+.env.*
+*.key
+*.pem
+credentials*.json
+service-account*.json

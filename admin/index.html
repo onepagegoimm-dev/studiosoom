@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Studio Soom — Admin Schedule</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#171717; --ink-soft:#3a3a3a; --muted:#7c766d; --bg:#ffffff; --bg-warm:#f6f3ee;
+    --line:#e6e1d8; --ok:#2f6b46; --ok-bg:#e8efe9; --warn:#8a6d1f; --warn-bg:#f6efe0;
+    --danger:#9a4a3c; --danger-bg:#f3e3e0; --pend:#6b6b6b; --pend-bg:#ececec;
+    --font-display:'Cormorant Garamond',Georgia,serif; --font-ui:'Jost',system-ui,sans-serif;
+    --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-ui);font-weight:300;color:var(--ink);background:var(--bg-warm);font-size:15px;line-height:1.6;}
+  h1,h2,h3{font-family:var(--font-display);font-weight:500;line-height:1.15;}
+  a{color:inherit;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:1rem clamp(1rem,4vw,2rem);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;}
+  .topbar .logo{font-family:var(--font-display);font-size:1.35rem;font-weight:600;}
+  .topbar .logo small{display:block;font-family:var(--font-ui);font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);}
+  .topbar .right{display:flex;gap:1rem;align-items:center;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;}
+  .topbar button,.topbar a{background:none;border:none;color:var(--muted);font-family:inherit;font-size:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;}
+  .topbar button:hover,.topbar a:hover{color:var(--ink);}
+  .wrap{max-width:1080px;margin:0 auto;padding:clamp(1.4rem,4vw,2.4rem) clamp(1rem,4vw,2rem) 5rem;}
+  .eyebrow{font-size:.68rem;font-weight:500;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:.6rem;}
+  .panel{background:#fff;border:1px solid var(--line);padding:clamp(1.2rem,3vw,2rem);margin-bottom:1.3rem;}
+  label{display:block;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem;}
+  input,select,textarea{width:100%;padding:.7rem .8rem;border:1px solid var(--line);background:#fff;font-family:inherit;font-size:.95rem;color:var(--ink);outline:none;margin-bottom:.9rem;border-radius:2px;}
+  input:focus,select:focus,textarea:focus{border-color:var(--ink);}
+  .btn{display:inline-block;font-family:var(--font-ui);font-size:.72rem;font-weight:400;letter-spacing:.18em;text-transform:uppercase;padding:.75rem 1.5rem;border:1px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer;transition:.3s var(--ease);border-radius:2px;}
+  .btn:hover{transform:translateY(-1px);}
+  .btn--solid{background:var(--ink);color:#fff;} .btn--solid:hover{background:transparent;color:var(--ink);}
+  .btn--danger{border-color:var(--danger);color:var(--danger);} .btn--danger:hover{background:var(--danger);color:#fff;}
+  .btn--sm{padding:.4rem .8rem;font-size:.64rem;}
+  .btn--block{width:100%;text-align:center;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;} .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem;}
+  .verify-row{display:flex;gap:.6rem;} .verify-row input{flex:1;margin-bottom:0;}
+  .status{font-size:.8rem;margin-top:.5rem;min-height:1em;} .status.err{color:var(--danger);} .status.ok{color:var(--ok);}
+  .hidden{display:none!important;} .muted{color:var(--muted);}
+  .login{max-width:420px;margin:8vh auto 0;}
+  /* tabs */
+  .tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.3rem;}
+  .tab{font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;padding:.6rem 1.1rem;border:1px solid var(--line);background:#fff;cursor:pointer;border-radius:2px;color:var(--muted);}
+  .tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  /* calendar */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
+  .cal-head h2{font-size:1.8rem;}
+  .cal-nav{display:flex;gap:.5rem;}
+  .legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.72rem;color:var(--muted);margin-bottom:1rem;}
+  .legend span{display:inline-flex;align-items:center;gap:.35rem;}
+  .dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+  .dot.ok{background:var(--ok);} .dot.warn{background:var(--warn);} .dot.danger{background:var(--danger);} .dot.pend{background:var(--pend);}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal .dow{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:center;padding:.3rem 0;}
+  .cell{min-height:92px;border:1px solid var(--line);background:#fff;padding:.35rem;font-size:.7rem;cursor:pointer;transition:background .2s;overflow:hidden;}
+  .cell:hover{background:var(--bg-warm);}
+  .cell.empty{background:transparent;border-color:transparent;cursor:default;}
+  .cell.today{outline:2px solid var(--ink);outline-offset:-2px;}
+  .cell .dnum{font-weight:500;color:var(--ink-soft);}
+  .chip{display:block;border-radius:2px;padding:.1rem .3rem;margin-top:.18rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.64rem;}
+  .chip.ok{background:var(--ok);} .chip.warn{background:var(--warn);} .chip.danger{background:var(--danger);} .chip.pend{background:var(--pend);}
+  .more{color:var(--muted);font-size:.62rem;margin-top:.15rem;}
+  /* day detail */
+  .day-row{padding:.8rem 0;border-bottom:1px solid var(--line);}
+  .day-row:last-child{border-bottom:none;}
+  .day-row .svc{font-family:var(--font-display);font-size:1.25rem;}
+  .day-row .det{font-size:.85rem;color:var(--ink-soft);}
+  .badge{display:inline-block;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;padding:.2rem .55rem;border-radius:100px;}
+  .badge.ok{background:var(--ok-bg);color:var(--ok);} .badge.warn{background:var(--warn-bg);color:var(--warn);}
+  .badge.danger{background:var(--danger-bg);color:var(--danger);} .badge.pend{background:var(--pend-bg);color:var(--pend);}
+  .reason{background:var(--bg-warm);border-left:2px solid var(--muted);padding:.4rem .7rem;font-size:.82rem;margin-top:.4rem;}
+  table{width:100%;border-collapse:collapse;font-size:.86rem;} th,td{text-align:left;padding:.5rem .4rem;border-bottom:1px solid var(--line);} th{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  .toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.84rem;padding:.7rem 1.2rem;border-radius:100px;opacity:0;transition:opacity .3s;z-index:80;}
+  .toast.show{opacity:1;}
+  @media(max-width:680px){ .row2,.row3{grid-template-columns:1fr;} .cell{min-height:64px;} .legend{font-size:.66rem;} }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">Studio Soom<small>Admin</small></div>
+  <div class="right">
+    <a href="../index.html">Site</a>
+    <button id="signout" class="hidden" onclick="signOut()">Sign out</button>
+  </div>
+</div>
+
+<!-- ░░ LOGIN ░░ -->
+<div class="wrap login" id="login">
+  <div class="panel">
+    <span class="eyebrow">Admin access</span>
+    <h2 style="font-size:1.7rem;margin-bottom:1rem;">Sign in</h2>
+    <label>Admin email</label>
+    <div class="verify-row">
+      <input type="email" id="login-email" placeholder="admin@email.com" />
+      <button class="btn btn--solid" id="send-btn" onclick="sendAdminCode()">Send code</button>
+    </div>
+    <div class="verify-row hidden" id="code-row" style="margin-top:.8rem;">
+      <input type="text" id="login-code" placeholder="6-digit code" maxlength="6" inputmode="numeric" />
+      <button class="btn btn--solid" id="verify-btn" onclick="verifyAdminCode()">Verify</button>
+    </div>
+    <div class="status" id="login-status"></div>
+    <p class="muted" style="font-size:.8rem;margin-top:1rem;">Only emails on the studio's admin list (set in the Apps Script Script Properties) will receive a code.</p>
+  </div>
+</div>
+
+<!-- ░░ MAIN ░░ -->
+<div class="wrap hidden" id="main">
+  <div class="tabs">
+    <div class="tab active" data-tab="schedule" onclick="switchTab('schedule')">Schedule</div>
+    <div class="tab" data-tab="packages" onclick="switchTab('packages')">Packages</div>
+    <div class="tab" data-tab="services" onclick="switchTab('services')">Services</div>
+    <div class="tab" data-tab="slots" onclick="switchTab('slots')">Time slots</div>
+  </div>
+
+  <!-- SCHEDULE / CALENDAR -->
+  <div id="tab-schedule">
+    <div class="panel">
+      <div class="cal-head">
+        <h2 id="cal-title">—</h2>
+        <div class="cal-nav">
+          <button class="btn btn--sm" onclick="calMove(-1)">‹ Prev</button>
+          <button class="btn btn--sm" onclick="calToday()">Today</button>
+          <button class="btn btn--sm" onclick="calMove(1)">Next ›</button>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="dot ok"></i>Confirmed</span>
+        <span><i class="dot pend"></i>Pending</span>
+        <span><i class="dot warn"></i>Rescheduled</span>
+        <span><i class="dot danger"></i>Cancelled</span>
+      </div>
+      <div class="cal" id="cal"></div>
+    </div>
+    <div class="panel" id="day-panel">
+      <span class="eyebrow">Day detail</span>
+      <h2 id="day-title" style="font-size:1.5rem;">Select a day</h2>
+      <div id="day-list"><p class="muted">Click a day in the calendar to see its bookings.</p></div>
+    </div>
+  </div>
+
+  <!-- PACKAGES -->
+  <div id="tab-packages" class="hidden">
+    <div class="panel">
+      <span class="eyebrow">Grant / edit package</span>
+      <h2 style="font-size:1.6rem;margin-bottom:1rem;" id="pkg-form-title">Add a package</h2>
+      <input type="hidden" id="pkg-id" />
+      <div class="row2">
+        <div><label>Member email</label><input type="email" id="pkg-email" placeholder="member@email.com" /></div>
+        <div><label>Package name</label><input type="text" id="pkg-name" placeholder="10-session Gyrotonic" /></div>
+      </div>
+      <div class="row3">
+        <div><label>Total sessions</label><input type="number" id="pkg-total" min="1" placeholder="10" /></div>
+        <div><label>Expiry date</label><input type="date" id="pkg-expiry" /></div>
+        <div><label>Price (£)</label><input type="number" id="pkg-price" min="0" placeholder="620" /></div>
+      </div>
+      <label>Note (optional)</label>
+      <input type="text" id="pkg-note" />
+      <div style="display:flex;gap:.6rem;">
+        <button class="btn btn--solid" id="pkg-save" onclick="savePackage()">Save package</button>
+        <button class="btn hidden" id="pkg-cancel" onclick="resetPkgForm()">Cancel</button>
+      </div>
+      <div class="status" id="pkg-status"></div>
+      <p class="muted" style="font-size:.8rem;margin-top:.6rem;">New packages start with 0 used sessions. Used count updates automatically as the member books and cancels.</p>
+    </div>
+    <div class="panel">
+      <span class="eyebrow">All packages</span>
+      <div id="pkg-list" style="margin-top:.6rem;"><p class="muted">Loading…</p></div>
+    </div>
+  </div>
+
+  <!-- SERVICES -->
+  <div id="tab-services" class="hidden">
+    <div class="panel">
+      <span class="eyebrow" id="svc-form-title">Add a service</span>
+      <input type="hidden" id="svc-row" /><input type="hidden" id="svc-id" />
+      <label>Name</label><input type="text" id="svc-name" placeholder="Private Gyrotonic session" />
+      <label>Description</label><input type="text" id="svc-desc" placeholder="60-minute one-to-one session" />
+      <div class="row2">
+        <div><label>Price (£)</label><input type="number" id="svc-price" placeholder="70" /></div>
+        <div><label>Duration (min)</label><input type="number" id="svc-duration" placeholder="60" /></div>
+      </div>
+      <div style="display:flex;gap:.6rem;">
+        <button class="btn btn--solid" id="svc-save" onclick="saveService()">Save</button>
+        <button class="btn hidden" id="svc-cancel" onclick="resetSvcForm()">Cancel</button>
+      </div>
+      <div class="status" id="svc-status"></div>
+    </div>
+    <div class="panel">
+      <span class="eyebrow">Current services</span>
+      <div id="svc-list" style="margin-top:.6rem;"><p class="muted">Loading…</p></div>
+    </div>
+  </div>
+
+  <!-- TIME SLOTS -->
+  <div id="tab-slots" class="hidden">
+    <div class="panel">
+      <span class="eyebrow">Generate time slots</span>
+      <div class="row2">
+        <div><label>From</label><input type="date" id="ts-start" /></div>
+        <div><label>To</label><input type="date" id="ts-end" /></div>
+      </div>
+      <label>Times — comma separated, 24-hour</label>
+      <input type="text" id="ts-times" placeholder="10:00, 11:30, 14:00, 16:00" />
+      <div class="row2">
+        <div><label>Capacity each</label><input type="number" id="ts-cap" value="1" /></div>
+        <div style="display:flex;align-items:flex-end;"><button class="btn btn--solid btn--block" id="gen-btn" onclick="generateSlots()">Add slots</button></div>
+      </div>
+      <p class="muted" style="font-size:.8rem;">Creates a slot for each date × time (duplicates skipped). For private 1-to-1 sessions, capacity is usually 1.</p>
+      <div id="ts-list" style="margin-top:1rem;"><p class="muted">Loading…</p></div>
+      <div style="text-align:right;margin-top:.6rem;"><button class="btn btn--sm" onclick="dedupeSlots()">Remove duplicates</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+//  ⚠️ 部署後改成你的 Apps Script Web App 網址(與 booking 頁相同)
+const API_URL = "https://script.google.com/macros/s/AKfycbwchwnEWj_TBMrx6Qj1HxilpTz5YZy1_pyqqrL7Fh3XdydX5H0wlsDpVhjpJkSf7rS6/exec";
+const CURRENCY = "£";
+// ════════════════════════════════════════════════════════════════
+
+let token = "";
+let calYear, calMonth;        // month: 0-11
+let calBookings = [];
+let services = [];
+
+async function api(p){ const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(p)}); return JSON.parse(await r.text()); }
+function $(id){ return document.getElementById(id); }
+function setStatus(id,m,t){ const e=$(id); e.textContent=m||""; e.className="status"+(t?(" "+t):""); }
+let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2000); }
+function pad(n){ return String(n).padStart(2,"0"); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function fmtLong(s){ try{ return new Date(s+"T00:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); }catch(e){ return s; } }
+const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+// ── login ──
+async function sendAdminCode(){
+  const email=$("login-email").value.trim(); if(!email) return setStatus("login-status","Enter your admin email","err");
+  const b=$("send-btn"); b.disabled=true; b.textContent="Sending…";
+  try{ const d=await api({action:"adminSendCode",email});
+    if(d.success){ $("code-row").classList.remove("hidden"); setStatus("login-status","If that email is an admin, a code has been sent.","ok");
+      let s=60;b.textContent=s+"s";const t=setInterval(()=>{s--;b.textContent=s+"s";if(s<=0){clearInterval(t);b.disabled=false;b.textContent="Resend";}},1000);
+    } else { setStatus("login-status",d.error||"Could not send","err"); b.disabled=false; b.textContent="Send code"; }
+  }catch(e){ setStatus("login-status","Connection failed. Check API_URL.","err"); b.disabled=false; b.textContent="Send code"; }
+}
+async function verifyAdminCode(){
+  const email=$("login-email").value.trim(), code=$("login-code").value.trim();
+  if(!code) return setStatus("login-status","Enter the code","err");
+  const b=$("verify-btn"); b.disabled=true; b.textContent="Verifying…";
+  try{ const d=await api({action:"adminVerifyCode",email,code});
+    if(d.success&&d.token){ token=d.token; enterMain(); }
+    else { setStatus("login-status",d.error||"Verification failed","err"); b.disabled=false; b.textContent="Verify"; }
+  }catch(e){ setStatus("login-status","Connection failed","err"); b.disabled=false; b.textContent="Verify"; }
+}
+function signOut(){ token=""; location.reload(); }
+
+function enterMain(){
+  $("login").classList.add("hidden"); $("main").classList.remove("hidden"); $("signout").classList.remove("hidden");
+  const t=new Date(); calYear=t.getFullYear(); calMonth=t.getMonth();
+  const ds=todayStr(); $("ts-start").value=ds; $("ts-end").value=ds; $("ts-start").min=ds; $("ts-end").min=ds;
+  loadCalendar();
+}
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
+  ["schedule","packages","services","slots"].forEach(n=>$("tab-"+n).classList.toggle("hidden",n!==name));
+  if(name==="packages") loadPackages();
+  if(name==="services") loadServices();
+  if(name==="slots") loadTimeSlots();
+}
+
+// ── calendar ──
+function calMove(delta){ calMonth+=delta; if(calMonth<0){calMonth=11;calYear--;} if(calMonth>11){calMonth=0;calYear++;} loadCalendar(); }
+function calToday(){ const t=new Date(); calYear=t.getFullYear(); calMonth=t.getMonth(); loadCalendar(); }
+async function loadCalendar(){
+  const last=new Date(calYear,calMonth+1,0).getDate();
+  const from=`${calYear}-${pad(calMonth+1)}-01`, to=`${calYear}-${pad(calMonth+1)}-${pad(last)}`;
+  $("cal-title").textContent=MONTHS[calMonth]+" "+calYear;
+  $("cal").innerHTML='<p class="muted" style="grid-column:1/-1;">Loading…</p>';
+  try{ const d=await api({action:"getCalendarBookings",token,from,to}); calBookings=d.bookings||[]; renderCalendar(); }
+  catch(e){ $("cal").innerHTML='<p class="muted" style="grid-column:1/-1;">Could not load schedule.</p>'; }
+}
+function statusClass(b){ const s=(b.booking_status||"").toLowerCase();
+  if(s==="cancelled") return "danger"; if((b.change_type||"")==="rescheduled") return "warn";
+  if(s==="confirmed"||s==="paid"||s==="deposit_paid"||s==="completed") return "ok"; return "pend"; }
+function renderCalendar(){
+  const byDate={}; calBookings.forEach(b=>{ (byDate[b.booking_date]=byDate[b.booking_date]||[]).push(b); });
+  Object.keys(byDate).forEach(k=>byDate[k].sort((a,b)=>(a.booking_time||"").localeCompare(b.booking_time||"")));
+  const startOffset=(new Date(calYear,calMonth,1).getDay()+6)%7; // Mon-first
+  const daysIn=new Date(calYear,calMonth+1,0).getDate();
+  let html=DOW.map(d=>`<div class="dow">${d}</div>`).join("");
+  for(let i=0;i<42;i++){
+    const dayNum=i-startOffset+1;
+    if(dayNum<1||dayNum>daysIn){ html+='<div class="cell empty"></div>'; continue; }
+    const ds=`${calYear}-${pad(calMonth+1)}-${pad(dayNum)}`;
+    const list=byDate[ds]||[];
+    const isToday=ds===todayStr();
+    let chips=list.slice(0,3).map(b=>`<span class="chip ${statusClass(b)}">${b.booking_time||""} ${b.name||b.service_name||""}</span>`).join("");
+    if(list.length>3) chips+=`<div class="more">+${list.length-3} more</div>`;
+    html+=`<div class="cell${isToday?" today":""}" onclick="showDay('${ds}')"><div class="dnum">${dayNum}</div>${chips}</div>`;
+  }
+  $("cal").innerHTML=html;
+}
+function showDay(ds){
+  $("day-title").textContent=fmtLong(ds);
+  const list=calBookings.filter(b=>b.booking_date===ds).sort((a,b)=>(a.booking_time||"").localeCompare(b.booking_time||""));
+  if(!list.length){ $("day-list").innerHTML='<p class="muted">No bookings on this day.</p>'; return; }
+  $("day-list").innerHTML=list.map(b=>{
+    const cls=statusClass(b);
+    const badge=`<span class="badge ${cls}">${(b.change_type==="rescheduled"&&b.booking_status!=="cancelled")?"Rescheduled":(b.booking_status||"")}</span>`;
+    let extra="";
+    if(b.change_type==="rescheduled"&&b.original_date) extra+=`<div class="muted" style="font-size:.8rem;margin-top:.2rem;">Moved from ${b.original_date} ${b.original_time||""}</div>`;
+    if(b.change_reason) extra+=`<div class="reason"><strong>Reason:</strong> ${b.change_reason}</div>`;
+    return `<div class="day-row">
+      <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
+        <div><div class="svc">${b.booking_time||""} · ${b.service_name||""}</div>
+        <div class="det">${b.name||""} · ${b.phone||""}${b.email?(" · "+b.email):""}</div></div>
+        <div>${badge}</div>
+      </div>${extra}
+    </div>`;
+  }).join("");
+  document.getElementById("day-panel").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+// ── packages ──
+async function loadPackages(){
+  try{ const d=await api({action:"adminListPackages",token}); renderPackages(d.packages||[]); }
+  catch(e){ $("pkg-list").innerHTML='<p class="muted">Could not load packages.</p>'; }
+}
+function renderPackages(list){
+  if(!list.length){ $("pkg-list").innerHTML='<p class="muted">No packages yet.</p>'; return; }
+  $("pkg-list").innerHTML='<table><thead><tr><th>Email</th><th>Package</th><th>Left</th><th>Expiry</th><th>Status</th><th></th></tr></thead><tbody>'+
+    list.map(p=>`<tr>
+      <td>${p.email||""}</td><td>${p.package_name||""}</td>
+      <td>${p.remaining_sessions}/${p.total_sessions}</td><td>${p.expiry_date||""}</td>
+      <td><span class="badge ${p.status==="active"?"ok":p.status==="expired"?"danger":"pend"}">${p.status}</span></td>
+      <td style="white-space:nowrap;"><button class="btn btn--sm" onclick='editPkg(${JSON.stringify(p)})'>Edit</button>
+      <button class="btn btn--sm btn--danger" onclick="deletePkg('${p.rowNum}')">Del</button></td>
+    </tr>`).join("")+'</tbody></table>';
+}
+function editPkg(p){
+  $("pkg-id").value=p.rowNum||""; $("pkg-email").value=p.email||""; $("pkg-name").value=p.package_name||"";
+  $("pkg-total").value=p.total_sessions||""; $("pkg-expiry").value=p.expiry_date||""; $("pkg-price").value=p.price||""; $("pkg-note").value=p.note||"";
+  $("pkg-form-title").textContent="Edit package"; $("pkg-cancel").classList.remove("hidden");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function resetPkgForm(){ ["pkg-id","pkg-email","pkg-name","pkg-total","pkg-expiry","pkg-price","pkg-note"].forEach(i=>$(i).value=""); $("pkg-form-title").textContent="Add a package"; $("pkg-cancel").classList.add("hidden"); setStatus("pkg-status","",""); }
+async function savePackage(){
+  const pkg={ rowNum:$("pkg-id").value||undefined, email:$("pkg-email").value.trim(), package_name:$("pkg-name").value.trim(),
+    total_sessions:Number($("pkg-total").value)||0, expiry_date:$("pkg-expiry").value, price:Number($("pkg-price").value)||0, note:$("pkg-note").value.trim() };
+  if(!pkg.email||!pkg.package_name||!pkg.total_sessions||!pkg.expiry_date) return setStatus("pkg-status","Email, name, total sessions and expiry are required","err");
+  const b=$("pkg-save"); b.disabled=true; b.textContent="Saving…";
+  try{ const d=await api({action:"adminSavePackage",token,package:pkg});
+    if(d.success){ toast("Package saved"); resetPkgForm(); loadPackages(); } else setStatus("pkg-status",d.error||"Save failed","err");
+  }catch(e){ setStatus("pkg-status","Connection failed","err"); }
+  b.disabled=false; b.textContent="Save package";
+}
+async function deletePkg(rowNum){ if(!confirm("Delete this package?")) return;
+  try{ const d=await api({action:"adminDeletePackage",token,rowNum}); if(d.success){ toast("Deleted"); loadPackages(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
+
+// ── services ──
+async function loadServices(){
+  try{ const d=await api({action:"adminListServices",token}); services=d.services||[]; renderServices(); }
+  catch(e){ $("svc-list").innerHTML='<p class="muted">Could not load services.</p>'; }
+}
+function renderServices(){
+  if(!services.length){ $("svc-list").innerHTML='<p class="muted">No services yet.</p>'; return; }
+  $("svc-list").innerHTML=services.map((s,i)=>`<div class="day-row" style="display:flex;justify-content:space-between;align-items:center;">
+    <div><div class="svc">${s.name}</div><div class="det">${CURRENCY}${s.price} · ${s.duration_min} min</div></div>
+    <div style="white-space:nowrap;"><button class="btn btn--sm" onclick="editSvc(${i})">Edit</button>
+    <button class="btn btn--sm btn--danger" onclick="deleteSvc(${i})">Del</button></div></div>`).join("");
+}
+function editSvc(i){ const s=services[i]; $("svc-row").value=s.rowNum||""; $("svc-id").value=s.id||""; $("svc-name").value=s.name||""; $("svc-desc").value=s.description||""; $("svc-price").value=s.price||""; $("svc-duration").value=s.duration_min||""; $("svc-form-title").textContent="Edit service"; $("svc-cancel").classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); }
+function resetSvcForm(){ ["svc-row","svc-id","svc-name","svc-desc","svc-price","svc-duration"].forEach(x=>$(x).value=""); $("svc-form-title").textContent="Add a service"; $("svc-cancel").classList.add("hidden"); setStatus("svc-status","",""); }
+async function saveService(){
+  const name=$("svc-name").value.trim(); if(!name) return setStatus("svc-status","Name is required","err");
+  const service={ rowNum:$("svc-row").value||undefined, id:$("svc-id").value||undefined, name, description:$("svc-desc").value.trim(), price:Number($("svc-price").value)||0, duration_min:Number($("svc-duration").value)||60, image_url:"" };
+  const b=$("svc-save"); b.disabled=true; b.textContent="Saving…";
+  try{ const d=await api({action:"adminSaveService",token,service}); if(d.success){ toast("Saved"); resetSvcForm(); loadServices(); } else setStatus("svc-status",d.error||"Save failed","err"); }catch(e){ setStatus("svc-status","Connection failed","err"); }
+  b.disabled=false; b.textContent="Save";
+}
+async function deleteSvc(i){ const s=services[i]; if(!confirm("Delete this service?")) return; try{ const d=await api({action:"adminDeleteService",token,rowNum:s.rowNum}); if(d.success){ toast("Deleted"); loadServices(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
+
+// ── time slots ──
+async function loadTimeSlots(){ try{ const d=await api({action:"adminListTimeSlots",token}); renderTimeSlots(d.slots||[]); }catch(e){ $("ts-list").innerHTML='<p class="muted">Could not load.</p>'; } }
+function renderTimeSlots(slots){
+  const today=todayStr(); const up=slots.filter(s=>s.date>=today);
+  if(!up.length){ $("ts-list").innerHTML='<p class="muted">No upcoming slots. Add some above.</p>'; return; }
+  const byDate={}; up.forEach(s=>{(byDate[s.date]=byDate[s.date]||[]).push(s);});
+  $("ts-list").innerHTML=Object.keys(byDate).sort().map(date=>`<div style="margin-bottom:.7rem;">
+    <div class="muted" style="font-size:.72rem;letter-spacing:.08em;margin-bottom:.3rem;">${date}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:.4rem;">${byDate[date].map(s=>`<span style="display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;padding:.3rem .6rem;border:1px solid var(--line);border-radius:100px;${s.booked_count>=s.max_capacity?"opacity:.45;":""}">${s.time_slot}<span class="muted" style="font-size:.66rem;">${s.booked_count}/${s.max_capacity}</span><span style="cursor:pointer;color:var(--danger);font-weight:700;" onclick="deleteSlot(${s.rowNum})">×</span></span>`).join("")}</div>
+  </div>`).join("");
+}
+async function generateSlots(){
+  const startDate=$("ts-start").value,endDate=$("ts-end").value;
+  const times=$("ts-times").value.split(",").map(t=>t.trim()).filter(Boolean); const capacity=Number($("ts-cap").value)||0;
+  if(!startDate||!endDate) return toast("Choose a date range"); if(!times.length) return toast("Enter at least one time");
+  const b=$("gen-btn"); b.disabled=true; b.textContent="Adding…";
+  try{ const d=await api({action:"adminGenerateTimeSlots",token,startDate,endDate,times,capacity});
+    if(d.success){ toast(`Added ${d.created}`+(d.skipped?`, skipped ${d.skipped}`:"")); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); }
+  b.disabled=false; b.textContent="Add slots";
+}
+async function deleteSlot(rowNum){ if(!confirm("Delete this time slot?")) return; try{ const d=await api({action:"adminDeleteTimeSlot",token,rowNum}); if(d.success){ toast("Deleted"); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
+async function dedupeSlots(){ if(!confirm("Remove duplicate slots (same date & time)?")) return; try{ const d=await api({action:"adminDedupeTimeSlots",token}); if(d.success){ toast(d.removed?`Removed ${d.removed}`:"No duplicates"); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
+</script>
+</body>
+</html>

@@ -99,9 +99,9 @@
 <body>
 
 <div class="topbar">
-  <a href="https://studiosoom.co.uk/" class="logo">Studio Soom</a>
+  <a href="../index.html" class="logo">Studio Soom</a>
   <div class="right">
-    <a href="https://studiosoom.co.uk/">← Site</a>
+    <a href="../index.html">← Site</a>
     <button id="signout" class="hidden" onclick="signOut()">Sign out</button>
   </div>
 </div>
@@ -222,7 +222,9 @@ let rSelSlot = null, reschedId = null, cancelId = null;
 
 async function api(payload){
   const res = await fetch(API_URL, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body: JSON.stringify(payload) });
-  return JSON.parse(await res.text());
+  const d = JSON.parse(await res.text());
+  if(d && d.error && sessionToken && /sign in again/i.test(d.error)) backToLogin("Your session timed out — please verify your email again.");
+  return d;
 }
 function $(id){ return document.getElementById(id); }
 function setStatus(id, msg, type){ const e=$(id); e.textContent=msg||""; e.className="status"+(type?(" "+type):""); }
@@ -253,6 +255,14 @@ async function verifyCode(){
   }catch(e){ setStatus("login-status","Connection failed","err"); btn.disabled=false; btn.textContent="Verify"; }
 }
 function signOut(){ email=""; sessionToken=""; location.reload(); }
+function backToLogin(msg){
+  email=""; sessionToken="";
+  $("account").classList.add("hidden"); $("signout").classList.add("hidden");
+  $("login").classList.remove("hidden"); $("code-row").classList.add("hidden");
+  $("login-code").value="";
+  setStatus("login-status", msg||"Please sign in.", "err");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
 
 function enterAccount(){
   $("login").classList.add("hidden");

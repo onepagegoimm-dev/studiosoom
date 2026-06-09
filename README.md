@@ -1,24 +1,31 @@
 # Studio Soom — 前端(GitHub Pages)
 
-公開靜態網站。部署到 GitHub Pages 即可上線,不需編譯、不需後端伺服器。
+公開靜態網站。部署到 GitHub Pages 即可上線。
+**範圍已精簡為「預約系統」**:客戶原站(studiosoom.co.uk)放一個連結過來預約即可,不另做官網頁面。
+
+## 網址(GitHub Pages 啟用後)
+
+| 用途 | 網址 |
+|------|------|
+| **預約系統(對外入口)** | <https://onepagegoimm-dev.github.io/studiosoom/booking/> |
+| 根網址(自動轉址到預約頁) | <https://onepagegoimm-dev.github.io/studiosoom/> |
+| 管理員行程表(不公開) | <https://onepagegoimm-dev.github.io/studiosoom/admin/> |
 
 ## 頁面
 
 | 路徑 | 說明 |
 |------|------|
-| `index.html` | 首頁(Hero、About Gyrotonic、About Studio、預約入口、Hours/Location) |
-| `about-us.html` | 關於我們 / 總監介紹 |
-| `about-gyrotonic.html` | 關於 Gyrotonic 方法 |
-| `pricing.html` | 價格方案 / 套餐 |
-| `contact.html` | 地址、電話、WhatsApp、Email、IG |
-| `booking/index.html` | 線上預約系統 |
+| `index.html` | 根目錄轉址頁:自動導向 `booking/`(避免有人開到根目錄看到 404) |
+| `booking/index.html` | 線上預約系統(登入、套餐/剩餘次數、預約、取消/改期、24h 規則) |
 | `admin/index.html` | 管理員行程表(`noindex`,不公開連結) |
-| `assets/styles.css` | 共用設計 token 與元件樣式 |
 
-## 上線前一定要改
+> `booking` 與 `admin` 為自包含單檔(樣式、程式都內嵌),不依賴任何共用 assets。
 
-1. `booking/index.html` 與 `admin/index.html` 最上方的 `const API_URL = "..."` → 換成你的 Apps Script 部署網址。
-2. 全站 placeholder 圖片(`picsum.photos` 灰階佔位)→ 換成 Studio Soom 自有照片。
-3. 聯絡資訊、營業時間、地址等 → 換成正式內容。
+## 上線重點
+
+1. `booking/index.html` 與 `admin/index.html` 的 `API_URL` 已填入正式 Apps Script 部署網址。
+2. **原站加入口**:在 studiosoom.co.uk 放一個「Book」按鈕,連到 `https://<帳號>.github.io/studiosoom/booking/`。
+3. 兩頁左上的返回連結已指向客戶原站 `https://studiosoom.co.uk/`。
+4. 後台(`admin/`)新增 Services、批次產生 Time slots、為顧客建立 Packages。
 
 詳見 `../gitlab/docs/setup-guide.md`。

@@ -280,7 +280,14 @@ function saveSession(){ try{ localStorage.setItem('soom_admin', JSON.stringify({
 function clearSession(){ try{ localStorage.removeItem('soom_admin'); }catch(e){} }
 function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_admin')||'null'); if(s&&s.token&&s.exp>Date.now()){ token=s.token; enterMain(); } else { clearSession(); } }catch(e){} }
 
-async function api(p){ const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(p)}); return JSON.parse(await r.text()); }
+let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複點擊
+const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminSavePackage","adminDeletePackage","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus"];
+async function api(p){
+  const isMut=MUTATIONS.indexOf(p.action)!==-1;
+  if(isMut){ if(apiBusy) return {error:"處理中,請稍候…"}; apiBusy=true; }
+  try{ const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(p)}); return JSON.parse(await r.text()); }
+  finally{ if(isMut) apiBusy=false; }
+}
 function $(id){ return document.getElementById(id); }
 function setStatus(id,m,t){ const e=$(id); e.textContent=m||""; e.className="status"+(t?(" "+t):""); }
 let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2000); }

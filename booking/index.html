@@ -238,11 +238,17 @@ function saveSession(){ try{ localStorage.setItem('soom_member', JSON.stringify(
 function clearSession(){ try{ localStorage.removeItem('soom_member'); }catch(e){} }
 function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_member')||'null'); if(s&&s.token&&s.email&&s.exp>Date.now()){ email=s.email; sessionToken=s.token; enterApp(); } else { clearSession(); } }catch(e){} }
 
+let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複點擊
+const MUTATIONS=["sendVerifyCode","purchaseSingle","purchasePackage","submitBooking","cancelBooking","rescheduleBooking"];
 async function api(payload){
-  const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});
-  const d=JSON.parse(await res.text());
-  if(d && d.error && sessionToken && /sign in again/i.test(d.error)) backToLogin("Your session timed out — please verify your email again.");
-  return d;
+  const isMut=MUTATIONS.indexOf(payload.action)!==-1;
+  if(isMut){ if(apiBusy) return {error:"處理中,請稍候…"}; apiBusy=true; }
+  try{
+    const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});
+    const d=JSON.parse(await res.text());
+    if(d && d.error && sessionToken && /sign in again/i.test(d.error)) backToLogin("Your session timed out — please verify your email again.");
+    return d;
+  } finally { if(isMut) apiBusy=false; }
 }
 function $(id){ return document.getElementById(id); }
 function setStatus(id,m,t){ const e=$(id); e.textContent=m||""; e.className="status"+(t?(" "+t):""); }

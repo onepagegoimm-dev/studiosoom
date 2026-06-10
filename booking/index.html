@@ -207,6 +207,18 @@
   </div>
 </div>
 
+<!-- CONFIRM MODAL(取代瀏覽器原生 alert/confirm) -->
+<div class="modal hidden" id="confirm-modal">
+  <div class="modal__box">
+    <h3>Please confirm</h3>
+    <p id="confirm-msg" style="margin:.6rem 0 1.1rem;color:var(--ink-soft);font-size:.95rem;line-height:1.6;"></p>
+    <div style="display:flex;gap:.7rem;">
+      <button class="btn btn--solid" id="confirm-ok" onclick="doConfirm()">Confirm</button>
+      <button class="btn" onclick="closeModal('confirm-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -218,7 +230,13 @@ const CURRENCY = "£";
 let email="", sessionToken="";
 let member={name:"",phone:""};
 let packages=[], bookings=[], products=[], singles=[];
-let selSlot=null, rSelSlot=null, reschedId=null, cancelId=null;
+let selSlot=null, rSelSlot=null, reschedId=null, cancelId=null, confirmCb=null;
+
+// 登入記憶:時效內重新整理免重新驗證(測試 5 分鐘,正式可改 30)
+const REMEMBER_MIN = 5;
+function saveSession(){ try{ localStorage.setItem('soom_member', JSON.stringify({email:email, token:sessionToken, exp:Date.now()+REMEMBER_MIN*60000})); }catch(e){} }
+function clearSession(){ try{ localStorage.removeItem('soom_member'); }catch(e){} }
+function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_member')||'null'); if(s&&s.token&&s.email&&s.exp>Date.now()){ email=s.email; sessionToken=s.token; enterApp(); } else { clearSession(); } }catch(e){} }
 
 async function api(payload){
   const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});
@@ -248,13 +266,13 @@ async function verifyCode(){
   if(!code) return setStatus("login-status","Enter the 6-digit code","err");
   const b=$("verify-btn"); b.disabled=true; b.textContent="Verifying…";
   try{ const d=await api({action:"verifyCode",email:v,code});
-    if(d.success&&d.sessionToken){ email=v; sessionToken=d.sessionToken; enterApp(); }
+    if(d.success&&d.sessionToken){ email=v; sessionToken=d.sessionToken; enterApp(); saveSession(); }
     else { setStatus("login-status",d.error||"Verification failed","err"); b.disabled=false; b.textContent="Verify"; }
   }catch(e){ setStatus("login-status","Connection failed","err"); b.disabled=false; b.textContent="Verify"; }
 }
-function signOut(){ email=""; sessionToken=""; location.reload(); }
+function signOut(){ clearSession(); email=""; sessionToken=""; location.reload(); }
 function backToLogin(msg){
-  email=""; sessionToken="";
+  clearSession(); email=""; sessionToken="";
   $("app").classList.add("hidden"); $("signout").classList.add("hidden");
   $("login").classList.remove("hidden"); $("code-row").classList.add("hidden"); $("login-code").value="";
   setStatus("login-status", msg||"Please sign in.", "err"); window.scrollTo({top:0,behavior:"smooth"});
@@ -335,19 +353,21 @@ async function loadBuy(){
     }).join("")+"</div>";
   }catch(e){ $("packages-buy").innerHTML='<p class="muted">Could not load packages.</p>'; }
 }
-async function buySingle(id){
+function buySingle(id){
   const s=singles.filter(x=>String(x.id)===String(id))[0]; if(!s) return;
-  if(!confirm("Buy 1× "+s.name+" for "+CURRENCY+s.price+"?\nIt will be added to your account now; we'll contact you to arrange payment.")) return;
-  try{ const d=await api({action:"purchaseSingle",email,sessionToken,course_id:id});
-    if(d.success){ toast(s.name+" added ✓"); await loadAccount(); switchTab("book"); } else toast(d.error||"Could not complete purchase");
-  }catch(e){ toast("Connection failed"); }
+  askConfirm("Buy 1 × "+s.name+" for "+CURRENCY+s.price+"? It will be added to your account now, and we'll contact you to arrange payment.", async()=>{
+    try{ const d=await api({action:"purchaseSingle",email,sessionToken,course_id:id});
+      if(d.success){ toast(s.name+" added ✓"); await loadAccount(); switchTab("book"); } else toast(d.error||"Could not complete purchase");
+    }catch(e){ toast("Connection failed"); }
+  });
 }
-async function buyPackage(id){
+function buyPackage(id){
   const p=products.filter(x=>String(x.id)===String(id))[0]; if(!p) return;
-  if(!confirm("Buy "+p.name+" for "+CURRENCY+p.price+"?\nThe sessions will be added to your account now; we'll contact you to arrange payment.")) return;
-  try{ const d=await api({action:"purchasePackage",email,sessionToken,product_id:id});
-    if(d.success){ toast(p.name+" added ✓"); await loadAccount(); switchTab("book"); } else toast(d.error||"Could not complete purchase");
-  }catch(e){ toast("Connection failed"); }
+  askConfirm("Buy "+p.name+" for "+CURRENCY+p.price+"? The sessions will be added to your account now, and we'll contact you to arrange payment.", async()=>{
+    try{ const d=await api({action:"purchasePackage",email,sessionToken,product_id:id});
+      if(d.success){ toast(p.name+" added ✓"); await loadAccount(); switchTab("book"); } else toast(d.error||"Could not complete purchase");
+    }catch(e){ toast("Connection failed"); }
+  });
 }
 
 // ── BOOK ──
@@ -426,6 +446,10 @@ async function submitResched(){
 }
 function openModal(id){ $(id).classList.remove("hidden"); }
 function closeModal(id){ $(id).classList.add("hidden"); }
+// 站內確認視窗(取代瀏覽器原生 confirm)
+function askConfirm(msg, cb){ $("confirm-msg").textContent=msg; confirmCb=cb; openModal("confirm-modal"); }
+function doConfirm(){ closeModal("confirm-modal"); const cb=confirmCb; confirmCb=null; if(cb) cb(); }
+restoreSession();  // 載入時若有未逾時的登入記憶,自動還原免重新驗證
 </script>
 </body>
 </html>

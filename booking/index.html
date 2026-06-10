@@ -233,7 +233,7 @@ let packages=[], bookings=[], products=[], singles=[];
 let selSlot=null, rSelSlot=null, reschedId=null, cancelId=null, confirmCb=null;
 
 // 登入記憶:時效內重新整理免重新驗證(測試 5 分鐘,正式可改 30)
-const REMEMBER_MIN = 5;
+const REMEMBER_MIN = 30;
 function saveSession(){ try{ localStorage.setItem('soom_member', JSON.stringify({email:email, token:sessionToken, exp:Date.now()+REMEMBER_MIN*60000})); }catch(e){} }
 function clearSession(){ try{ localStorage.removeItem('soom_member'); }catch(e){} }
 function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_member')||'null'); if(s&&s.token&&s.email&&s.exp>Date.now()){ email=s.email; sessionToken=s.token; enterApp(); } else { clearSession(); } }catch(e){} }

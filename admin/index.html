@@ -289,6 +289,7 @@ async function api(p){
   finally{ if(isMut) apiBusy=false; }
 }
 function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function setStatus(id,m,t){ const e=$(id); e.textContent=m||""; e.className="status"+(t?(" "+t):""); }
 let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2000); }
 function pad(n){ return String(n).padStart(2,"0"); }
@@ -360,7 +361,7 @@ function renderCalendar(){
     const ds=`${calYear}-${pad(calMonth+1)}-${pad(dayNum)}`;
     const list=byDate[ds]||[];
     const isToday=ds===todayStr();
-    let chips=list.slice(0,3).map(b=>`<span class="chip ${statusClass(b)}">${b.booking_time||""} ${b.name||b.service_name||""}</span>`).join("");
+    let chips=list.slice(0,3).map(b=>`<span class="chip ${statusClass(b)}">${b.booking_time||""} ${esc(b.name||b.service_name||"")}</span>`).join("");
     if(list.length>3) chips+=`<div class="more">+${list.length-3} more</div>`;
     html+=`<div class="cell${isToday?" today":""}" onclick="showDay('${ds}')"><div class="dnum">${dayNum}</div>${chips}</div>`;
   }
@@ -375,11 +376,11 @@ function showDay(ds){
     const badge=`<span class="badge ${cls}">${(b.change_type==="rescheduled"&&b.booking_status!=="cancelled")?"Rescheduled":(b.booking_status||"")}</span>`;
     let extra="";
     if(b.change_type==="rescheduled"&&b.original_date) extra+=`<div class="muted" style="font-size:.8rem;margin-top:.2rem;">Moved from ${b.original_date} ${b.original_time||""}</div>`;
-    if(b.change_reason) extra+=`<div class="reason"><strong>Reason:</strong> ${b.change_reason}</div>`;
+    if(b.change_reason) extra+=`<div class="reason"><strong>Reason:</strong> ${esc(b.change_reason)}</div>`;
     return `<div class="day-row">
       <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
-        <div><div class="svc">${b.booking_time||""} · ${b.service_name||""}</div>
-        <div class="det">${b.name||""} · ${b.phone||""}${b.email?(" · "+b.email):""}</div></div>
+        <div><div class="svc">${b.booking_time||""} · ${esc(b.service_name||"")}</div>
+        <div class="det">${esc(b.name||"")} · ${esc(b.phone||"")}${b.email?(" · "+esc(b.email)):""}</div></div>
         <div>${badge}</div>
       </div>${extra}
     </div>`;
@@ -396,10 +397,10 @@ function renderPackages(list){
   if(!list.length){ $("pkg-list").innerHTML='<p class="muted">No packages yet.</p>'; return; }
   $("pkg-list").innerHTML='<table><thead><tr><th>Email</th><th>Package</th><th>Left</th><th>Expiry</th><th>Status</th><th></th></tr></thead><tbody>'+
     list.map(p=>`<tr>
-      <td>${p.email||""}</td><td>${p.package_name||""}</td>
+      <td>${esc(p.email||"")}</td><td>${esc(p.package_name||"")}</td>
       <td>${p.remaining_sessions}/${p.total_sessions}</td><td>${p.expiry_date||""}</td>
       <td><span class="badge ${p.status==="active"?"ok":p.status==="expired"?"danger":"pend"}">${p.status}</span></td>
-      <td style="white-space:nowrap;"><button class="btn btn--sm" onclick='editPkg(${JSON.stringify(p)})'>Edit</button>
+      <td style="white-space:nowrap;"><button class="btn btn--sm" onclick='editPkg(${esc(JSON.stringify(p))})'>Edit</button>
       <button class="btn btn--sm btn--danger" onclick="deletePkg('${p.rowNum}')">Del</button></td>
     </tr>`).join("")+'</tbody></table>';
 }
@@ -434,7 +435,7 @@ async function loadPackageProducts(){
 }
 function courseOptions(selId){
   if(!pmCourses.length) return '<option value="">(no single courses — add some first)</option>';
-  return pmCourses.map(c=>`<option value="${c.id}"${String(c.id)===String(selId)?" selected":""}>${c.name||""} (${CURRENCY}${c.price})</option>`).join("");
+  return pmCourses.map(c=>`<option value="${c.id}"${String(c.id)===String(selId)?" selected":""}>${esc(c.name||"")} (${CURRENCY}${c.price})</option>`).join("");
 }
 function addPmItem(courseId,qty){
   const wrap=document.createElement("div"); wrap.className="pm-item"; wrap.style.cssText="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:center;";
@@ -452,9 +453,9 @@ function renderPackageProducts(list){
   if(!list.length){ $("pm-list").innerHTML='<p class="muted">No packages yet.</p>'; return; }
   $("pm-list").innerHTML='<table><thead><tr><th>Name</th><th>Includes</th><th>Price</th><th>Validity</th><th></th></tr></thead><tbody>'+
     list.map(p=>{
-      const inc=(p.items||[]).map(it=>(it.course_name||"")+" ×"+it.qty).join(", ");
-      return `<tr><td>${p.name||""}</td><td>${inc}</td><td>${CURRENCY}${p.price}</td><td>${p.valid_label||(p.valid_days+"d")}</td>
-      <td style="white-space:nowrap;"><button class="btn btn--sm" onclick='editPm(${JSON.stringify(p)})'>Edit</button>
+      const inc=(p.items||[]).map(it=>esc(it.course_name||"")+" ×"+it.qty).join(", ");
+      return `<tr><td>${esc(p.name||"")}</td><td>${inc}</td><td>${CURRENCY}${p.price}</td><td>${esc(p.valid_label||(p.valid_days+"d"))}</td>
+      <td style="white-space:nowrap;"><button class="btn btn--sm" onclick='editPm(${esc(JSON.stringify(p))})'>Edit</button>
       <button class="btn btn--sm btn--danger" onclick="deletePm('${p.rowNum}')">Del</button></td></tr>`;
     }).join("")+'</tbody></table>';
 }
@@ -493,8 +494,8 @@ function renderOrders(list){
       const opts=ORDER_STATUSES.map(s=>`<option value="${s}"${s===o.status?" selected":""}>${s}</option>`).join("");
       return `<tr>
         <td style="white-space:nowrap;font-size:.76rem;">${o.timestamp||""}</td>
-        <td>${o.name||""}<div class="muted" style="font-size:.76rem;">${o.email||""}${o.phone?(" · "+o.phone):""}</div>${o.note?('<div class="muted" style="font-size:.76rem;">“'+o.note+'”</div>'):""}</td>
-        <td>${o.product_name||""}<div class="muted" style="font-size:.76rem;">${o.sessions||""} sessions · ${CURRENCY}${o.price||""}</div></td>
+        <td>${esc(o.name||"")}<div class="muted" style="font-size:.76rem;">${esc(o.email||"")}${o.phone?(" · "+esc(o.phone)):""}</div>${o.note?('<div class="muted" style="font-size:.76rem;">“'+esc(o.note)+'”</div>'):""}</td>
+        <td>${esc(o.product_name||"")}<div class="muted" style="font-size:.76rem;">${o.sessions||""} sessions · ${CURRENCY}${o.price||""}</div></td>
         <td><select onchange="updateOrder('${o.rowNum}',this.value)">${opts}</select></td>
       </tr>`;
     }).join("")+'</tbody></table>';
@@ -512,7 +513,7 @@ async function loadServices(){
 function renderServices(){
   if(!services.length){ $("svc-list").innerHTML='<p class="muted">No services yet.</p>'; return; }
   $("svc-list").innerHTML=services.map((s,i)=>`<div class="day-row" style="display:flex;justify-content:space-between;align-items:center;">
-    <div><div class="svc">${s.name}</div><div class="det">${CURRENCY}${s.price} · ${s.duration_min} min</div></div>
+    <div><div class="svc">${esc(s.name)}</div><div class="det">${CURRENCY}${s.price} · ${s.duration_min} min</div></div>
     <div style="white-space:nowrap;"><button class="btn btn--sm" onclick="editSvc(${i})">Edit</button>
     <button class="btn btn--sm btn--danger" onclick="deleteSvc(${i})">Del</button></div></div>`).join("");
 }
@@ -535,7 +536,7 @@ function renderTimeSlots(slots){
   const byDate={}; up.forEach(s=>{(byDate[s.date]=byDate[s.date]||[]).push(s);});
   $("ts-list").innerHTML=Object.keys(byDate).sort().map(date=>`<div style="margin-bottom:.7rem;">
     <div class="muted" style="font-size:.72rem;letter-spacing:.08em;margin-bottom:.3rem;">${date}</div>
-    <div style="display:flex;flex-wrap:wrap;gap:.4rem;">${byDate[date].map(s=>`<span style="display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;padding:.3rem .6rem;border:1px solid var(--line);border-radius:100px;${s.booked_count>=s.max_capacity?"opacity:.45;":""}">${s.time_slot}<span class="muted" style="font-size:.66rem;">${s.booked_count}/${s.max_capacity}</span><span style="cursor:pointer;color:var(--danger);font-weight:700;" onclick="deleteSlot(${s.rowNum})">×</span></span>`).join("")}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:.4rem;">${byDate[date].map(s=>`<span style="display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;padding:.3rem .6rem;border:1px solid var(--line);border-radius:100px;${s.booked_count>=s.max_capacity?"opacity:.45;":""}">${esc(s.time_slot)}<span class="muted" style="font-size:.66rem;">${s.booked_count}/${s.max_capacity}</span><span style="cursor:pointer;color:var(--danger);font-weight:700;" onclick="deleteSlot(${s.rowNum})">×</span></span>`).join("")}</div>
   </div>`).join("");
 }
 async function generateSlots(){

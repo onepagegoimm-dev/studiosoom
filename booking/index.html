@@ -101,6 +101,10 @@
       <input type="email" id="login-email" placeholder="you@email.com" autocomplete="email" />
       <button class="btn btn--solid" id="send-btn" onclick="sendCode()">Send code</button>
     </div>
+    <div class="hidden" id="profile-row" style="margin-top:.8rem;display:flex;flex-direction:column;gap:.6rem;">
+      <input type="text" id="login-name" placeholder="姓名 Name" autocomplete="name" />
+      <input type="tel" id="login-phone" placeholder="電話 Phone(可留空)" autocomplete="tel" />
+    </div>
     <div class="verify-row hidden" id="code-row" style="margin-top:.8rem;">
       <input type="text" id="login-code" placeholder="6-digit code" maxlength="6" inputmode="numeric" />
       <button class="btn btn--solid" id="verify-btn" onclick="verifyCode()">Verify</button>
@@ -260,9 +264,27 @@ function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){retu
 // ── login ──
 async function sendCode(){
   const v=$("login-email").value.trim(); if(!v) return setStatus("login-status","Please enter your email","err");
+  const profileVisible=!$("profile-row").classList.contains("hidden");
+  const codeVisible=!$("code-row").classList.contains("hidden");
+  // 已展開資料欄(首次補填)或已在收碼階段(Resend)→ 直接寄碼並帶上姓名電話
+  if(profileVisible||codeVisible){
+    if(profileVisible && !$("login-name").value.trim()) return setStatus("login-status","請填姓名 / Please enter your name","err");
+    return doSendCode(v, $("login-name").value.trim(), $("login-phone").value.trim());
+  }
+  // 第一次按:先判斷此 Email 是否需要補資料(新會員,或舊資料沒名字)
+  const b=$("send-btn"); b.disabled=true; b.textContent="…";
+  try{
+    const cm=await api({action:"checkMember",email:v});
+    if(cm && cm.exists && cm.hasName){ return doSendCode(v,"",""); }
+    $("profile-row").classList.remove("hidden"); try{$("login-name").focus();}catch(e){}
+    setStatus("login-status",(cm&&cm.exists)?"請補一次姓名與電話(只需這次)":"第一次登入,請留下姓名與電話(只需這次)","");
+    b.disabled=false; b.textContent="Send code";
+  }catch(e){ setStatus("login-status","Connection failed. Check API_URL.","err"); b.disabled=false; b.textContent="Send code"; }
+}
+async function doSendCode(v,name,phone){
   const b=$("send-btn"); b.disabled=true; b.textContent="Sending…";
-  try{ const d=await api({action:"sendVerifyCode",email:v});
-    if(d.success){ $("code-row").classList.remove("hidden"); setStatus("login-status","Code sent — check your inbox.","ok");
+  try{ const d=await api({action:"sendVerifyCode",email:v,name:name,phone:phone});
+    if(d.success){ $("code-row").classList.remove("hidden"); $("profile-row").classList.add("hidden"); setStatus("login-status","Code sent — check your inbox.","ok");
       let s=60;b.textContent=s+"s";const t=setInterval(()=>{s--;b.textContent=s+"s";if(s<=0){clearInterval(t);b.disabled=false;b.textContent="Resend";}},1000);
     } else { setStatus("login-status",d.error||"Could not send code","err"); b.disabled=false; b.textContent="Send code"; }
   }catch(e){ setStatus("login-status","Connection failed. Check API_URL.","err"); b.disabled=false; b.textContent="Send code"; }
@@ -280,7 +302,7 @@ function signOut(){ clearSession(); email=""; sessionToken=""; location.reload()
 function backToLogin(msg){
   clearSession(); email=""; sessionToken="";
   $("app").classList.add("hidden"); $("signout").classList.add("hidden");
-  $("login").classList.remove("hidden"); $("code-row").classList.add("hidden"); $("login-code").value="";
+  $("login").classList.remove("hidden"); $("code-row").classList.add("hidden"); $("profile-row").classList.add("hidden"); $("login-code").value="";
   setStatus("login-status", msg||"Please sign in.", "err"); window.scrollTo({top:0,behavior:"smooth"});
 }
 function enterApp(){

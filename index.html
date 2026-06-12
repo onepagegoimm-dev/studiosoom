@@ -166,29 +166,36 @@ function onScroll(){ if(window.scrollY>40) nav.classList.add('nav--scrolled'); e
 window.addEventListener('scroll', onScroll, {passive:true}); onScroll();
 async function api(p){ const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(p)}); return JSON.parse(await r.text()); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+function catOf(x){ return x.category==="group"?"group":(x.category==="mixed"?"mixed":"individual"); }
+function homeCard(item){
+  const isPkg=item.kind==="package";
+  const accent=item.cat==="group"?"var(--muted)":item.cat==="mixed"?"var(--warn)":"var(--ink)";
+  const tag=isPkg?(item.cat==="mixed"?'<div class="meta" style="color:var(--warn);font-weight:600">個人 + 群組</div>':'<div class="meta">套組</div>'):'<div class="meta">單堂</div>';
+  const body=isPkg?((item.items||[]).map(function(it){return esc(it.course_name)+" ×"+it.qty;}).join(", ")):esc(item.description||"");
+  const suffix=isPkg?(item.total_sessions?(' / '+esc(item.total_sessions)+' sessions'):''):' / session';
+  const vlabel=(isPkg&&item.valid_label)?('<div class="meta">'+esc(item.valid_label)+'</div>'):"";
+  return '<div class="card" style="border-top:3px solid '+accent+'">'+tag+'<h3>'+esc(item.name)+'</h3>'+vlabel+
+    '<div class="price">'+CURRENCY+esc(item.price)+'<small>'+suffix+'</small></div>'+
+    '<div class="desc">'+body+'</div>'+
+    '<a href="./booking/index.html#buy" class="btn btn--solid">Buy</a></div>';
+}
+function homeSection(title,sub,band,tColor,sColor,items){
+  return '<div style="grid-column:1/-1;'+band+'border-radius:6px;padding:.7rem 1.1rem;margin:1.4rem 0 .2rem;"><div style="font-family:\'Cormorant Garamond\',Georgia,serif;font-size:1.6rem;line-height:1.1;color:'+tColor+'">'+title+'</div><div style="font-size:.8rem;color:'+sColor+'">'+sub+'</div></div>'+items.map(homeCard).join('');
+}
 async function loadProducts(){
   const el=document.getElementById("products-list");
-  let html="";
   try{
     const cs=await api({action:"getServices"}); const singles=(cs&&cs.services)||[];
-    html+=singles.map(function(s){
-      return '<div class="card"><div class="meta">Single course</div><h3>'+esc(s.name)+'</h3>'+
-        '<div class="price">'+CURRENCY+esc(s.price)+'<small> / session</small></div>'+
-        '<div class="desc">'+esc(s.description||'')+'</div>'+
-        '<a href="./booking/index.html#buy" class="btn btn--solid">Buy</a></div>';
-    }).join('');
-  }catch(e){}
-  try{
     const d=await api({action:"getPackageProducts"}); const list=(d&&d.products)||[];
-    html+=list.map(function(p){
-      const inc=(p.items||[]).map(function(it){return esc(it.course_name)+" ×"+it.qty;}).join(", ");
-      return '<div class="card"><div class="meta">Package</div><h3>'+esc(p.name)+'</h3>'+(p.valid_label?('<div class="meta">'+esc(p.valid_label)+'</div>'):"")+
-        '<div class="price">'+CURRENCY+esc(p.price)+(p.total_sessions?('<small> / '+esc(p.total_sessions)+' sessions</small>'):"")+'</div>'+
-        '<div class="desc">'+(inc?('Includes: '+inc):'')+(p.description?('<br>'+esc(p.description)):'')+'</div>'+
-        '<a href="./booking/index.html#buy" class="btn btn--solid">Buy</a></div>';
-    }).join('');
-  }catch(e){}
-  el.innerHTML = html || '<p class="loading center" style="grid-column:1/-1">Pricing is being updated — please contact us.</p>';
+    const all=singles.map(function(s){return {kind:"single",cat:catOf(s),id:s.id,name:s.name,price:s.price,description:s.description};})
+      .concat(list.map(function(p){return {kind:"package",cat:catOf(p),id:p.id,name:p.name,price:p.price,valid_label:p.valid_label,total_sessions:p.total_sessions,items:p.items,description:p.description};}));
+    const ind=all.filter(function(x){return x.cat==="individual";}), grp=all.filter(function(x){return x.cat==="group";}), mix=all.filter(function(x){return x.cat==="mixed";});
+    let html="";
+    if(ind.length) html+=homeSection("個人課程","Private 一對一","background:var(--ink);color:#fff;","#fff","#b9b2a6",ind);
+    if(grp.length) html+=homeSection("群組課程","Group 多人","background:var(--bg-warm);border:1px solid var(--line);","var(--ink)","var(--muted)",grp);
+    if(mix.length) html+=homeSection("綜合套組","個人 + 群組 混合方案","background:var(--warn-bg);border:1px solid var(--warn);","var(--warn)","var(--warn)",mix);
+    el.innerHTML = html || '<p class="loading center" style="grid-column:1/-1">Pricing is being updated — please contact us.</p>';
+  }catch(e){ el.innerHTML='<p class="loading center" style="grid-column:1/-1">Pricing is being updated — please contact us.</p>'; }
 }
 loadProducts();
 </script>

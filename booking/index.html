@@ -138,16 +138,10 @@
   <!-- BUY -->
   <div id="tab-buy" class="hidden">
     <div class="panel">
-      <span class="eyebrow">Buy — single courses</span>
-      <h2>Single courses</h2>
-      <p class="muted" style="font-size:.9rem;margin-bottom:.4rem;">Buy one session of a course; it's added to your account so you can book. We'll contact you to arrange payment.</p>
-      <div id="singles" style="margin-top:1rem;"><p class="muted">Loading…</p></div>
-    </div>
-    <div class="panel">
-      <span class="eyebrow">Buy — packages (套組)</span>
-      <h2>Packages</h2>
-      <p class="muted" style="font-size:.9rem;margin-bottom:.4rem;">Save with a bundle. Each course in the bundle is added to your account separately.</p>
-      <div id="packages-buy" style="margin-top:1rem;"><p class="muted">Loading…</p></div>
+      <span class="eyebrow">Buy</span>
+      <h2>購買課程</h2>
+      <p class="muted" style="font-size:.9rem;margin-bottom:.4rem;">購買後即加入你的帳戶,可立即預約;我們會再聯絡你安排付款。</p>
+      <div id="buy-products" style="margin-top:1rem;"><p class="muted">Loading…</p></div>
     </div>
   </div>
 
@@ -359,27 +353,37 @@ function renderBookings(){
 
 // ── BUY(單堂 + 套組) ──
 async function loadBuy(){
+  $("buy-products").innerHTML='<p class="muted">Loading…</p>';
   try{
-    const d=await api({action:"getServices"}); singles=(d&&d.services)||[];
-    const el=$("singles");
-    if(!singles.length){ el.innerHTML='<p class="muted">No single courses available right now.</p>'; }
-    else el.innerHTML='<div class="prods">'+singles.map(s=>`<div class="prod"><div class="name">${esc(s.name)}</div>${s.duration_min?('<div class="meta">'+esc(s.duration_min)+' min</div>'):""}
-        <div class="price">${CURRENCY}${esc(s.price)}<small> / session</small></div>
-        <div class="desc">${esc(s.description||'')}</div>
-        <button class="btn btn--solid" onclick="buySingle('${esc(s.id)}')">Buy 1 session</button></div>`).join("")+"</div>";
-  }catch(e){ $("singles").innerHTML='<p class="muted">Could not load courses.</p>'; }
-  try{
-    const d=await api({action:"getPackageProducts"}); products=(d&&d.products)||[];
-    const el=$("packages-buy");
-    if(!products.length){ el.innerHTML='<p class="muted">No packages available right now.</p>'; }
-    else el.innerHTML='<div class="prods">'+products.map(p=>{
-      const inc=(p.items||[]).map(it=>esc(it.course_name)+" ×"+it.qty).join(", ");
-      return `<div class="prod"><div class="name">${esc(p.name)}</div>${p.valid_label?('<div class="meta">'+esc(p.valid_label)+'</div>'):""}
-        <div class="price">${CURRENCY}${esc(p.price)}${p.total_sessions?('<small> / '+esc(p.total_sessions)+' sessions</small>'):""}</div>
-        <div class="desc">${inc?('Includes: '+inc):''}${p.description?('<br>'+esc(p.description)):''}</div>
-        <button class="btn btn--solid" onclick="buyPackage('${esc(p.id)}')">Buy package</button></div>`;
-    }).join("")+"</div>";
-  }catch(e){ $("packages-buy").innerHTML='<p class="muted">Could not load packages.</p>'; }
+    const sd=await api({action:"getServices"}); singles=(sd&&sd.services)||[];
+    const pd=await api({action:"getPackageProducts"}); products=(pd&&pd.products)||[];
+    renderBuy();
+  }catch(e){ $("buy-products").innerHTML='<p class="muted">Could not load products.</p>'; }
+}
+function catOf(x){ return x.category==="group"?"group":(x.category==="mixed"?"mixed":"individual"); }
+function buyCard(item){
+  const isPkg=item.kind==="package";
+  const accent=item.cat==="group"?"var(--muted)":item.cat==="mixed"?"var(--warn)":"var(--ink)";
+  const tag=isPkg?(item.cat==="mixed"?`<span style="font-size:.66rem;font-weight:600;background:var(--warn);color:#fff;padding:2px 9px;border-radius:3px;white-space:nowrap;">個人 + 群組</span>`:`<span style="font-size:.66rem;background:var(--bg-warm);color:var(--muted);padding:2px 8px;border-radius:3px;">套組</span>`):`<span style="font-size:.66rem;background:var(--bg-warm);color:var(--muted);padding:2px 8px;border-radius:3px;">單堂</span>`;
+  const meta=isPkg?(item.valid_label||""):(item.duration_min?(item.duration_min+" min"):"");
+  const suffix=isPkg?(item.total_sessions?(" / "+item.total_sessions+" sessions"):""):" / session";
+  const body=isPkg?((item.items||[]).map(it=>esc(it.course_name)+" ×"+it.qty).join(", ")):esc(item.description||"");
+  const btn=isPkg?`<button class="btn btn--solid" onclick="buyPackage('${esc(item.id)}')">Buy package</button>`:`<button class="btn btn--solid" onclick="buySingle('${esc(item.id)}')">Buy 1 session</button>`;
+  return `<div class="prod" style="border-left:3px solid ${accent};"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;"><div class="name">${esc(item.name)}</div>${tag}</div>${meta?`<div class="meta">${esc(meta)}</div>`:""}<div class="price">${CURRENCY}${esc(item.price)}<small>${suffix}</small></div><div class="desc">${body}</div>${btn}</div>`;
+}
+function buySection(title,sub,band,tColor,sColor,items){
+  return `<div style="margin-bottom:1.6rem;"><div style="${band}border-radius:6px;padding:.7rem 1rem;margin-bottom:.8rem;"><div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.45rem;line-height:1.1;color:${tColor};">${title}</div><div style="font-size:.78rem;color:${sColor};">${sub}</div></div><div class="prods">${items.map(buyCard).join("")}</div></div>`;
+}
+function renderBuy(){
+  const sList=singles.map(s=>({kind:"single",cat:catOf(s),id:s.id,name:s.name,price:s.price,duration_min:s.duration_min,description:s.description}));
+  const pList=products.map(p=>({kind:"package",cat:catOf(p),id:p.id,name:p.name,price:p.price,valid_label:p.valid_label,total_sessions:p.total_sessions,items:p.items,description:p.description}));
+  const all=sList.concat(pList);
+  const ind=all.filter(x=>x.cat==="individual"), grp=all.filter(x=>x.cat==="group"), mix=all.filter(x=>x.cat==="mixed");
+  let html="";
+  if(ind.length) html+=buySection("個人課程","Private 一對一","background:var(--ink);color:#fff;","#fff","#b9b2a6",ind);
+  if(grp.length) html+=buySection("群組課程","Group 多人","background:var(--bg-warm);border:1px solid var(--line);","var(--ink)","var(--muted)",grp);
+  if(mix.length) html+=buySection("綜合套組","個人 + 群組 混合方案","background:var(--warn-bg);border:1px solid var(--warn);","var(--warn)","var(--warn)",mix);
+  $("buy-products").innerHTML=html||'<p class="muted">No products available right now.</p>';
 }
 function buySingle(id){
   const s=singles.filter(x=>String(x.id)===String(id))[0]; if(!s) return;

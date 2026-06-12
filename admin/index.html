@@ -227,6 +227,11 @@
         <div><label>Price (£)</label><input type="number" id="svc-price" placeholder="70" /></div>
         <div><label>Duration (min)</label><input type="number" id="svc-duration" placeholder="60" /></div>
       </div>
+      <label>分類 Category</label>
+      <select id="svc-category">
+        <option value="individual">個人課程 Individual</option>
+        <option value="group">群組課程 Group</option>
+      </select>
       <div style="display:flex;gap:.6rem;">
         <button class="btn btn--solid" id="svc-save" onclick="saveService()">Save</button>
         <button class="btn hidden" id="svc-cancel" onclick="resetSvcForm()">Cancel</button>
@@ -513,15 +518,15 @@ async function loadServices(){
 function renderServices(){
   if(!services.length){ $("svc-list").innerHTML='<p class="muted">No services yet.</p>'; return; }
   $("svc-list").innerHTML=services.map((s,i)=>`<div class="day-row" style="display:flex;justify-content:space-between;align-items:center;">
-    <div><div class="svc">${esc(s.name)}</div><div class="det">${CURRENCY}${s.price} · ${s.duration_min} min</div></div>
+    <div><div class="svc">${esc(s.name)}</div><div class="det">${CURRENCY}${s.price} · ${s.duration_min} min · ${s.category==="group"?"群組":"個人"}</div></div>
     <div style="white-space:nowrap;"><button class="btn btn--sm" onclick="editSvc(${i})">Edit</button>
     <button class="btn btn--sm btn--danger" onclick="deleteSvc(${i})">Del</button></div></div>`).join("");
 }
-function editSvc(i){ const s=services[i]; $("svc-row").value=s.rowNum||""; $("svc-id").value=s.id||""; $("svc-name").value=s.name||""; $("svc-desc").value=s.description||""; $("svc-price").value=s.price||""; $("svc-duration").value=s.duration_min||""; $("svc-form-title").textContent="Edit single course"; $("svc-cancel").classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); }
-function resetSvcForm(){ ["svc-row","svc-id","svc-name","svc-desc","svc-price","svc-duration"].forEach(x=>$(x).value=""); $("svc-form-title").textContent="Add a single course"; $("svc-cancel").classList.add("hidden"); setStatus("svc-status","",""); }
+function editSvc(i){ const s=services[i]; $("svc-row").value=s.rowNum||""; $("svc-id").value=s.id||""; $("svc-name").value=s.name||""; $("svc-desc").value=s.description||""; $("svc-price").value=s.price||""; $("svc-duration").value=s.duration_min||""; $("svc-category").value=(s.category==="group")?"group":"individual"; $("svc-form-title").textContent="Edit single course"; $("svc-cancel").classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); }
+function resetSvcForm(){ ["svc-row","svc-id","svc-name","svc-desc","svc-price","svc-duration"].forEach(x=>$(x).value=""); $("svc-category").value="individual"; $("svc-form-title").textContent="Add a single course"; $("svc-cancel").classList.add("hidden"); setStatus("svc-status","",""); }
 async function saveService(){
   const name=$("svc-name").value.trim(); if(!name) return setStatus("svc-status","Name is required","err");
-  const service={ rowNum:$("svc-row").value||undefined, id:$("svc-id").value||undefined, name, description:$("svc-desc").value.trim(), price:Number($("svc-price").value)||0, duration_min:Number($("svc-duration").value)||60, image_url:"" };
+  const service={ rowNum:$("svc-row").value||undefined, id:$("svc-id").value||undefined, name, description:$("svc-desc").value.trim(), price:Number($("svc-price").value)||0, duration_min:Number($("svc-duration").value)||60, image_url:"", category:$("svc-category").value };
   const b=$("svc-save"); b.disabled=true; b.textContent="Saving…";
   try{ const d=await api({action:"adminSaveService",token,service}); if(d.success){ toast("Saved"); resetSvcForm(); loadServices(); } else setStatus("svc-status",d.error||"Save failed","err"); }catch(e){ setStatus("svc-status","Connection failed","err"); }
   b.disabled=false; b.textContent="Save";

@@ -102,8 +102,8 @@
       <button class="btn btn--solid" id="send-btn" onclick="sendCode()">Send code</button>
     </div>
     <div class="hidden" id="profile-row" style="margin-top:.8rem;display:flex;flex-direction:column;gap:.6rem;">
-      <input type="text" id="login-name" placeholder="姓名 Name" autocomplete="name" />
-      <input type="tel" id="login-phone" placeholder="電話 Phone(可留空)" autocomplete="tel" />
+      <input type="text" id="login-name" placeholder="Name" autocomplete="name" />
+      <input type="tel" id="login-phone" placeholder="Phone (optional)" autocomplete="tel" />
     </div>
     <div class="verify-row hidden" id="code-row" style="margin-top:.8rem;">
       <input type="text" id="login-code" placeholder="6-digit code" maxlength="6" inputmode="numeric" />
@@ -139,8 +139,8 @@
   <div id="tab-buy" class="hidden">
     <div class="panel">
       <span class="eyebrow">Buy</span>
-      <h2>購買課程</h2>
-      <p class="muted" style="font-size:.9rem;margin-bottom:.4rem;">購買後即加入你的帳戶,可立即預約;我們會再聯絡你安排付款。</p>
+      <h2>Sessions &amp; Packages</h2>
+      <p class="muted" style="font-size:.9rem;margin-bottom:.4rem;">Purchases are added to your account straight away so you can book immediately — we'll contact you to arrange payment.</p>
       <div id="buy-products" style="margin-top:1rem;"><p class="muted">Loading…</p></div>
     </div>
   </div>
@@ -240,7 +240,7 @@ let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複�
 const MUTATIONS=["sendVerifyCode","purchaseSingle","purchasePackage","submitBooking","cancelBooking","rescheduleBooking"];
 async function api(payload){
   const isMut=MUTATIONS.indexOf(payload.action)!==-1;
-  if(isMut){ if(apiBusy) return {error:"處理中,請稍候…"}; apiBusy=true; }
+  if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }
   try{
     const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});
     const d=JSON.parse(await res.text());
@@ -262,7 +262,7 @@ async function sendCode(){
   const codeVisible=!$("code-row").classList.contains("hidden");
   // 已展開資料欄(首次補填)或已在收碼階段(Resend)→ 直接寄碼並帶上姓名電話
   if(profileVisible||codeVisible){
-    if(profileVisible && !$("login-name").value.trim()) return setStatus("login-status","請填姓名 / Please enter your name","err");
+    if(profileVisible && !$("login-name").value.trim()) return setStatus("login-status","Please enter your name","err");
     return doSendCode(v, $("login-name").value.trim(), $("login-phone").value.trim());
   }
   // 第一次按:先判斷此 Email 是否需要補資料(新會員,或舊資料沒名字)
@@ -271,7 +271,7 @@ async function sendCode(){
     const cm=await api({action:"checkMember",email:v});
     if(cm && cm.exists && cm.hasName){ return doSendCode(v,"",""); }
     $("profile-row").classList.remove("hidden"); try{$("login-name").focus();}catch(e){}
-    setStatus("login-status",(cm&&cm.exists)?"請補一次姓名與電話(只需這次)":"第一次登入,請留下姓名與電話(只需這次)","");
+    setStatus("login-status",(cm&&cm.exists)?"Please add your name and phone (one time only)":"First time here? Please leave your name and phone (one time only)","");
     b.disabled=false; b.textContent="Send code";
   }catch(e){ setStatus("login-status","Connection failed. Check API_URL.","err"); b.disabled=false; b.textContent="Send code"; }
 }
@@ -361,28 +361,56 @@ async function loadBuy(){
   }catch(e){ $("buy-products").innerHTML='<p class="muted">Could not load products.</p>'; }
 }
 function catOf(x){ return x.category==="group"?"group":(x.category==="mixed"?"mixed":"individual"); }
+// 類別標籤(Private 1:1 / Group / Private + Group)
+const CAT_LABEL={individual:"Private 1:1",group:"Group",mixed:"Private + Group"};
+function catTag(cat){
+  const st=cat==="mixed"?"background:var(--warn);color:#fff;":cat==="group"?"background:var(--ink);color:#fff;":"background:var(--bg-warm);color:var(--ink-soft);border:1px solid var(--line);";
+  return `<span style="font-size:.6rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;padding:3px 10px;border-radius:100px;white-space:nowrap;${st}">${CAT_LABEL[cat]||""}</span>`;
+}
+function fmtMoney(v){ v=Number(v)||0; return (v%1===0)?String(v):v.toFixed(2); }
 function buyCard(item){
   const isPkg=item.kind==="package";
   const accent=item.cat==="group"?"var(--muted)":item.cat==="mixed"?"var(--warn)":"var(--ink)";
-  const tag=isPkg?(item.cat==="mixed"?`<span style="font-size:.66rem;font-weight:600;background:var(--warn);color:#fff;padding:2px 9px;border-radius:3px;white-space:nowrap;">個人 + 群組</span>`:`<span style="font-size:.66rem;background:var(--bg-warm);color:var(--muted);padding:2px 8px;border-radius:3px;">套組</span>`):`<span style="font-size:.66rem;background:var(--bg-warm);color:var(--muted);padding:2px 8px;border-radius:3px;">單堂</span>`;
-  const meta=isPkg?(item.valid_label||""):(item.duration_min?(item.duration_min+" min"):"");
-  const suffix=isPkg?(item.total_sessions?(" / "+item.total_sessions+" sessions"):""):" / session";
-  const body=isPkg?((item.items||[]).map(it=>esc(it.course_name)+" ×"+it.qty).join(", ")):esc(item.description||"");
+  const metaBits=[];
+  if(isPkg&&item.total_sessions) metaBits.push(item.total_sessions+" sessions");
+  if(!isPkg&&item.duration_min) metaBits.push(item.duration_min+" min");
+  if(isPkg&&item.valid_label) metaBits.push(item.valid_label);
+  const meta=metaBits.join(" · ");
+  // 套餐照參考站樣式:總價 + (每堂均價);單堂:價格 / session
+  let price;
+  if(isPkg){
+    const per=(Number(item.total_sessions)>1&&Number(item.price)>0)?(Number(item.price)/Number(item.total_sessions)):0;
+    price=CURRENCY+fmtMoney(item.price)+(per?`<small> (${CURRENCY}${fmtMoney(per)} / session)</small>`:"");
+  } else {
+    price=CURRENCY+fmtMoney(item.price)+"<small> / session</small>";
+  }
+  const body=isPkg?((item.items||[]).map(it=>it.qty+" × "+esc(it.course_name)).join(", ")):esc(item.description||"");
   const btn=isPkg?`<button class="btn btn--solid" onclick="buyPackage('${esc(item.id)}')">Buy package</button>`:`<button class="btn btn--solid" onclick="buySingle('${esc(item.id)}')">Buy 1 session</button>`;
-  return `<div class="prod" style="border-left:3px solid ${accent};"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;"><div class="name">${esc(item.name)}</div>${tag}</div>${meta?`<div class="meta">${esc(meta)}</div>`:""}<div class="price">${CURRENCY}${esc(item.price)}<small>${suffix}</small></div><div class="desc">${body}</div>${btn}</div>`;
+  return `<div class="prod" style="border-left:3px solid ${accent};"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;"><div class="name">${esc(item.name)}</div>${catTag(item.cat)}</div>${meta?`<div class="meta">${esc(meta)}</div>`:""}<div class="price">${price}</div><div class="desc">${body}</div>${btn}</div>`;
 }
-function buySection(title,sub,band,tColor,sColor,items){
-  return `<div style="margin-bottom:1.6rem;"><div style="${band}border-radius:6px;padding:.7rem 1rem;margin-bottom:.8rem;"><div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.45rem;line-height:1.1;color:${tColor};">${title}</div><div style="font-size:.78rem;color:${sColor};">${sub}</div></div><div class="prods">${items.map(buyCard).join("")}</div></div>`;
+// 子分類列(分隔線 + 小標):無項目時不渲染
+function buySub(label,items){
+  if(!items.length) return "";
+  return `<div style="margin:1.2rem 0 .7rem;display:flex;align-items:center;gap:.7rem;"><span style="font-size:.68rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);white-space:nowrap;">${label}</span><span style="flex:1;height:1px;background:var(--line);"></span></div><div class="prods">${items.map(buyCard).join("")}</div>`;
 }
+// 大分類(Single Sessions / Packages),內含子分類
+function buySection(title,sub,band,tColor,sColor,subs){
+  const inner=subs.map(s=>buySub(s[0],s[1])).join("");
+  if(!inner) return "";
+  return `<div style="margin-bottom:2rem;"><div style="${band}border-radius:6px;padding:.8rem 1.1rem;"><div style="font-family:var(--font-display);font-size:1.5rem;line-height:1.1;color:${tColor};">${title}</div><div style="font-size:.78rem;color:${sColor};">${sub}</div></div>${inner}</div>`;
+}
+const POLICY_HTML=`<div style="padding:1rem 1.2rem;background:var(--bg-warm);border:1px solid var(--line);border-radius:4px;font-size:.84rem;color:var(--ink-soft);line-height:1.6;"><b style="font-weight:500;letter-spacing:.12em;text-transform:uppercase;font-size:.68rem;color:var(--muted);display:block;margin-bottom:.3rem;">Studio policy</b>Reservations, cancellations and schedule changes must be made at least 24 hours in advance. Within 24 hours of your session, changes can't be made online — please contact us directly. Same-day cancellations may result in the session being deducted from your package.</div>`;
 function renderBuy(){
   const sList=singles.map(s=>({kind:"single",cat:catOf(s),id:s.id,name:s.name,price:s.price,duration_min:s.duration_min,description:s.description}));
   const pList=products.map(p=>({kind:"package",cat:catOf(p),id:p.id,name:p.name,price:p.price,valid_label:p.valid_label,total_sessions:p.total_sessions,items:p.items,description:p.description}));
-  const all=sList.concat(pList);
-  const ind=all.filter(x=>x.cat==="individual"), grp=all.filter(x=>x.cat==="group"), mix=all.filter(x=>x.cat==="mixed");
+  const f=(a,c)=>a.filter(x=>x.cat===c);
   let html="";
-  if(ind.length) html+=buySection("個人課程","Private 一對一","background:var(--ink);color:#fff;","#fff","#b9b2a6",ind);
-  if(grp.length) html+=buySection("群組課程","Group 多人","background:var(--bg-warm);border:1px solid var(--line);","var(--ink)","var(--muted)",grp);
-  if(mix.length) html+=buySection("綜合套組","個人 + 群組 混合方案","background:var(--warn-bg);border:1px solid var(--warn);","var(--warn)","var(--warn)",mix);
+  // 第一層:單堂 vs 套餐;第二層:一對一 / 群組 /(套餐限定)混搭
+  if(sList.length) html+=buySection("Single Sessions","Pay as you go — book one session at a time","background:var(--ink);color:#fff;","#fff","#b9b2a6",
+    [["Private 1:1",f(sList,"individual")],["Group classes",f(sList,"group")]]);
+  if(pList.length) html+=buySection("Packages","Save with a course of sessions — best value per session","background:var(--bg-warm);border:1px solid var(--line);","var(--ink)","var(--muted)",
+    [["Private 1:1 packages",f(pList,"individual")],["Group packages",f(pList,"group")],["Mixed packages — Private + Group",f(pList,"mixed")]]);
+  if(html) html+=POLICY_HTML;
   $("buy-products").innerHTML=html||'<p class="muted">No products available right now.</p>';
 }
 function buySingle(id){

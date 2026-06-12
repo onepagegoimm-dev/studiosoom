@@ -167,33 +167,59 @@ window.addEventListener('scroll', onScroll, {passive:true}); onScroll();
 async function api(p){ const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(p)}); return JSON.parse(await r.text()); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
 function catOf(x){ return x.category==="group"?"group":(x.category==="mixed"?"mixed":"individual"); }
+// 類別標籤(Private 1:1 / Group / Private + Group)
+var CAT_LABEL={individual:"Private 1:1",group:"Group",mixed:"Private + Group"};
+function catTag(cat){
+  var st=cat==="mixed"?"background:var(--warn);color:#fff;":cat==="group"?"background:var(--ink);color:#fff;":"background:var(--bg-warm);color:var(--ink-soft);border:1px solid var(--line);";
+  return '<span style="align-self:flex-start;font-size:.6rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;padding:3px 10px;border-radius:100px;white-space:nowrap;margin-bottom:.5rem;'+st+'">'+(CAT_LABEL[cat]||"")+'</span>';
+}
+function fmtMoney(v){ v=Number(v)||0; return (v%1===0)?String(v):v.toFixed(2); }
 function homeCard(item){
-  const isPkg=item.kind==="package";
-  const accent=item.cat==="group"?"var(--muted)":item.cat==="mixed"?"var(--warn)":"var(--ink)";
-  const tag=isPkg?(item.cat==="mixed"?'<div class="meta" style="color:var(--warn);font-weight:600">個人 + 群組</div>':'<div class="meta">套組</div>'):'<div class="meta">單堂</div>';
-  const body=isPkg?((item.items||[]).map(function(it){return esc(it.course_name)+" ×"+it.qty;}).join(", ")):esc(item.description||"");
-  const suffix=isPkg?(item.total_sessions?(' / '+esc(item.total_sessions)+' sessions'):''):' / session';
-  const vlabel=(isPkg&&item.valid_label)?('<div class="meta">'+esc(item.valid_label)+'</div>'):"";
-  return '<div class="card" style="border-top:3px solid '+accent+'">'+tag+'<h3>'+esc(item.name)+'</h3>'+vlabel+
-    '<div class="price">'+CURRENCY+esc(item.price)+'<small>'+suffix+'</small></div>'+
+  var isPkg=item.kind==="package";
+  var accent=item.cat==="group"?"var(--muted)":item.cat==="mixed"?"var(--warn)":"var(--ink)";
+  var body=isPkg?((item.items||[]).map(function(it){return it.qty+" × "+esc(it.course_name);}).join(", ")):esc(item.description||"");
+  // 套餐照參考站樣式:總價 + (每堂均價)
+  var price;
+  if(isPkg){
+    var per=(Number(item.total_sessions)>1&&Number(item.price)>0)?(Number(item.price)/Number(item.total_sessions)):0;
+    price=CURRENCY+fmtMoney(item.price)+(per?('<small> ('+CURRENCY+fmtMoney(per)+' / session)</small>'):'');
+  } else {
+    price=CURRENCY+fmtMoney(item.price)+'<small> / session</small>';
+  }
+  var metaBits=[];
+  if(isPkg&&item.total_sessions) metaBits.push(esc(item.total_sessions)+' sessions');
+  if(isPkg&&item.valid_label) metaBits.push(esc(item.valid_label));
+  var vlabel=metaBits.length?('<div class="meta">'+metaBits.join(' · ')+'</div>'):"";
+  return '<div class="card" style="border-top:3px solid '+accent+'">'+catTag(item.cat)+'<h3>'+esc(item.name)+'</h3>'+vlabel+
+    '<div class="price">'+price+'</div>'+
     '<div class="desc">'+body+'</div>'+
     '<a href="./booking/index.html#buy" class="btn btn--solid">Buy</a></div>';
 }
-function homeSection(title,sub,band,tColor,sColor,items){
-  return '<div style="grid-column:1/-1;'+band+'border-radius:6px;padding:.7rem 1.1rem;margin:1.4rem 0 .2rem;"><div style="font-family:\'Cormorant Garamond\',Georgia,serif;font-size:1.6rem;line-height:1.1;color:'+tColor+'">'+title+'</div><div style="font-size:.8rem;color:'+sColor+'">'+sub+'</div></div>'+items.map(homeCard).join('');
+// 子分類列(分隔線 + 小標):無項目時不渲染
+function homeSub(label,items){
+  if(!items.length) return "";
+  return '<div style="grid-column:1/-1;display:flex;align-items:center;gap:.7rem;margin:.2rem 0 -.6rem;"><span style="font-size:.68rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);white-space:nowrap;">'+label+'</span><span style="flex:1;height:1px;background:var(--line);"></span></div>'+items.map(homeCard).join('');
+}
+// 大分類(Single Sessions / Packages),內含子分類
+function homeSection(title,sub,band,tColor,sColor,subs){
+  var inner=subs.map(function(s){return homeSub(s[0],s[1]);}).join('');
+  if(!inner) return "";
+  return '<div style="grid-column:1/-1;'+band+'border-radius:6px;padding:.8rem 1.1rem;margin:1.4rem 0 .2rem;"><div style="font-family:\'Cormorant Garamond\',Georgia,serif;font-size:1.6rem;line-height:1.1;color:'+tColor+'">'+title+'</div><div style="font-size:.8rem;color:'+sColor+'">'+sub+'</div></div>'+inner;
 }
 async function loadProducts(){
   const el=document.getElementById("products-list");
   try{
     const cs=await api({action:"getServices"}); const singles=(cs&&cs.services)||[];
     const d=await api({action:"getPackageProducts"}); const list=(d&&d.products)||[];
-    const all=singles.map(function(s){return {kind:"single",cat:catOf(s),id:s.id,name:s.name,price:s.price,description:s.description};})
-      .concat(list.map(function(p){return {kind:"package",cat:catOf(p),id:p.id,name:p.name,price:p.price,valid_label:p.valid_label,total_sessions:p.total_sessions,items:p.items,description:p.description};}));
-    const ind=all.filter(function(x){return x.cat==="individual";}), grp=all.filter(function(x){return x.cat==="group";}), mix=all.filter(function(x){return x.cat==="mixed";});
+    const sList=singles.map(function(s){return {kind:"single",cat:catOf(s),id:s.id,name:s.name,price:s.price,description:s.description};});
+    const pList=list.map(function(p){return {kind:"package",cat:catOf(p),id:p.id,name:p.name,price:p.price,valid_label:p.valid_label,total_sessions:p.total_sessions,items:p.items,description:p.description};});
+    const f=function(a,c){return a.filter(function(x){return x.cat===c;});};
     let html="";
-    if(ind.length) html+=homeSection("個人課程","Private 一對一","background:var(--ink);color:#fff;","#fff","#b9b2a6",ind);
-    if(grp.length) html+=homeSection("群組課程","Group 多人","background:var(--bg-warm);border:1px solid var(--line);","var(--ink)","var(--muted)",grp);
-    if(mix.length) html+=homeSection("綜合套組","個人 + 群組 混合方案","background:var(--warn-bg);border:1px solid var(--warn);","var(--warn)","var(--warn)",mix);
+    // 第一層:單堂 vs 套餐;第二層:一對一 / 群組 /(套餐限定)混搭
+    if(sList.length) html+=homeSection("Single Sessions","Pay as you go — book one session at a time","background:var(--ink);color:#fff;","#fff","#b9b2a6",
+      [["Private 1:1",f(sList,"individual")],["Group classes",f(sList,"group")]]);
+    if(pList.length) html+=homeSection("Packages","Save with a course of sessions — best value per session","background:var(--bg-warm);border:1px solid var(--line);","var(--ink)","var(--muted)",
+      [["Private 1:1 packages",f(pList,"individual")],["Group packages",f(pList,"group")],["Mixed packages — Private + Group",f(pList,"mixed")]]);
     el.innerHTML = html || '<p class="loading center" style="grid-column:1/-1">Pricing is being updated — please contact us.</p>';
   }catch(e){ el.innerHTML='<p class="loading center" style="grid-column:1/-1">Pricing is being updated — please contact us.</p>'; }
 }

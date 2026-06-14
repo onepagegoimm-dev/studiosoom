@@ -79,6 +79,28 @@
   .toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.84rem;padding:.7rem 1.2rem;border-radius:100px;opacity:0;transition:opacity .3s;z-index:80;}
   .toast.show{opacity:1;}
   @media(max-width:680px){ .row2,.row3{grid-template-columns:1fr;} .cell{min-height:64px;} .legend{font-size:.66rem;} }
+  /* 自訂英文日期選擇器(取代原生 input[type=date],不受瀏覽器語系影響) */
+  .dpick{position:relative;}
+  .dp-field{width:100%;display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.6rem .8rem;border:1px solid var(--line);background:#fff;border-radius:4px;font-family:inherit;font-size:.95rem;color:var(--ink);cursor:pointer;text-align:left;}
+  .dp-field:hover{border-color:var(--ink);}
+  .dp-val.dp-ph{color:#9b958a;}
+  .dp-ico{color:var(--muted);font-size:.7rem;}
+  .dp-pop{position:fixed;z-index:1000;width:280px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 32px rgba(20,18,16,.16);padding:.8rem;}
+  .dp-pop.hidden{display:none;}
+  .dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;}
+  .dp-title{font-weight:600;font-size:.95rem;color:var(--ink);}
+  .dp-nav{border:1px solid var(--line);background:#fff;width:30px;height:30px;border-radius:4px;cursor:pointer;font-size:1.1rem;line-height:1;color:var(--ink);}
+  .dp-nav:hover{background:var(--bg-warm);}
+  .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .dp-dow{text-align:center;font-size:.66rem;letter-spacing:.04em;color:var(--muted);padding:.25rem 0;font-weight:600;}
+  .dp-day{border:0;background:none;padding:.45rem 0;border-radius:4px;cursor:pointer;font-size:.85rem;color:var(--ink);font-family:inherit;}
+  .dp-day:hover{background:var(--bg-warm);}
+  .dp-day.dp-sel{background:var(--ink);color:#fff;}
+  .dp-day:disabled{color:#cfc9bf;cursor:default;}
+  .dp-day:disabled:hover{background:none;}
+  .dp-foot{display:flex;justify-content:space-between;margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--line);}
+  .dp-clear,.dp-today{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.8rem;font-family:inherit;}
+  .dp-clear:hover,.dp-today:hover{color:var(--ink);text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -159,7 +181,7 @@
       </div>
       <div class="row3">
         <div><label>Total sessions</label><input type="number" id="pkg-total" min="1" placeholder="10" /></div>
-        <div><label>Expiry date</label><input type="date" id="pkg-expiry" /></div>
+        <div><label>Expiry date</label><input type="hidden" id="pkg-expiry"><div class="dpick" data-for="pkg-expiry"></div></div>
         <div><label>Price (£)</label><input type="number" id="pkg-price" min="0" placeholder="620" /></div>
       </div>
       <label>Note (optional)</label>
@@ -265,8 +287,8 @@
     <div class="panel">
       <span class="eyebrow">Generate time slots</span>
       <div class="row2">
-        <div><label>From</label><input type="date" id="ts-start" /></div>
-        <div><label>To</label><input type="date" id="ts-end" /></div>
+        <div><label>From</label><input type="hidden" id="ts-start"><div class="dpick" data-for="ts-start"></div></div>
+        <div><label>To</label><input type="hidden" id="ts-end"><div class="dpick" data-for="ts-end"></div></div>
       </div>
       <label>Times — comma separated, 24-hour</label>
       <input type="text" id="ts-times" placeholder="10:00, 11:30, 14:00, 16:00" />
@@ -343,7 +365,7 @@ function signOut(){ clearSession(); token=""; location.reload(); }
 function enterMain(){
   $("login").classList.add("hidden"); $("main").classList.remove("hidden"); $("signout").classList.remove("hidden");
   const t=new Date(); calYear=t.getFullYear(); calMonth=t.getMonth();
-  const ds=todayStr(); $("ts-start").value=ds; $("ts-end").value=ds; $("ts-start").min=ds; $("ts-end").min=ds;
+  const ds=todayStr(); dpSet("ts-start",ds); dpSet("ts-end",ds); dpMin("ts-start",ds); dpMin("ts-end",ds);
   loadCalendar();
 }
 function switchTab(name){
@@ -427,11 +449,11 @@ function renderPackages(list){
 }
 function editPkg(p){
   $("pkg-id").value=p.rowNum||""; $("pkg-email").value=p.email||""; $("pkg-name").value=p.package_name||"";
-  $("pkg-total").value=p.total_sessions||""; $("pkg-expiry").value=p.expiry_date||""; $("pkg-price").value=p.price||""; $("pkg-note").value=p.note||"";
+  $("pkg-total").value=p.total_sessions||""; dpSet("pkg-expiry",p.expiry_date||""); $("pkg-price").value=p.price||""; $("pkg-note").value=p.note||"";
   $("pkg-form-title").textContent="Edit package"; $("pkg-cancel").classList.remove("hidden");
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function resetPkgForm(){ ["pkg-id","pkg-email","pkg-name","pkg-total","pkg-expiry","pkg-price","pkg-note"].forEach(i=>$(i).value=""); $("pkg-form-title").textContent="Add a package"; $("pkg-cancel").classList.add("hidden"); setStatus("pkg-status","",""); }
+function resetPkgForm(){ ["pkg-id","pkg-email","pkg-name","pkg-total","pkg-expiry","pkg-price","pkg-note"].forEach(i=>$(i).value=""); dpSet("pkg-expiry",""); $("pkg-form-title").textContent="Add a package"; $("pkg-cancel").classList.add("hidden"); setStatus("pkg-status","",""); }
 async function savePackage(){
   const pkg={ rowNum:$("pkg-id").value||undefined, email:$("pkg-email").value.trim(), package_name:$("pkg-name").value.trim(),
     total_sessions:Number($("pkg-total").value)||0, expiry_date:$("pkg-expiry").value, price:Number($("pkg-price").value)||0, note:$("pkg-note").value.trim() };
@@ -514,7 +536,7 @@ function renderOrders(list){
     list.map(o=>{
       const opts=ORDER_STATUSES.map(s=>`<option value="${s}"${s===o.status?" selected":""}>${s}</option>`).join("");
       return `<tr>
-        <td style="white-space:nowrap;font-size:.76rem;">${o.timestamp||""}</td>
+        <td style="white-space:nowrap;font-size:.76rem;">${(o.timestamp||"").replace(/\s*\([^)]*\)\s*$/,"")}</td>
         <td>${esc(o.name||"")}<div class="muted" style="font-size:.76rem;">${esc(o.email||"")}${o.phone?(" · "+esc(o.phone)):""}</div>${o.note?('<div class="muted" style="font-size:.76rem;">“'+esc(o.note)+'”</div>'):""}</td>
         <td>${esc(o.product_name||"")}<div class="muted" style="font-size:.76rem;">${o.sessions||""} sessions · ${CURRENCY}${o.price||""}</div></td>
         <td><select onchange="updateOrder('${o.rowNum}',this.value)">${opts}</select></td>
@@ -571,6 +593,48 @@ async function generateSlots(){
 }
 async function deleteSlot(rowNum){ if(!confirm("Delete this time slot?")) return; try{ const d=await api({action:"adminDeleteTimeSlot",token,rowNum}); if(d.success){ toast("Deleted"); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
 async function dedupeSlots(){ if(!confirm("Remove duplicate slots (same date & time)?")) return; try{ const d=await api({action:"adminDedupeTimeSlots",token}); if(d.success){ toast(d.removed?`Removed ${d.removed}`:"No duplicates"); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
+// ── 自訂英文日期選擇器(取代原生 input[type=date],不受瀏覽器語系影響) ──
+var DP_MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+var DP_DOW=["Su","Mo","Tu","We","Th","Fr","Sa"];
+var _dp={};
+function dpPad(n){ return String(n).padStart(2,"0"); }
+function dpStr(dt){ return dt.getFullYear()+"-"+dpPad(dt.getMonth()+1)+"-"+dpPad(dt.getDate()); }
+function dpParse(v){ if(!v) return null; var p=String(v).split("-"); if(p.length!==3) return null; var d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); return isNaN(d.getTime())?null:d; }
+function dpFmt(v){ var d=dpParse(v); if(!d) return ""; return d.getDate()+" "+DP_MONTHS[d.getMonth()].slice(0,3)+" "+d.getFullYear(); }
+function dpMinOf(id){ var d=_dp[id]; var el=d?d.input:document.getElementById(id); return (el&&el.getAttribute("data-min"))||""; }
+function dpInit(id,onChange){
+  var input=document.getElementById(id), box=document.querySelector('.dpick[data-for="'+id+'"]');
+  if(!input||!box) return;
+  box.innerHTML='<button type="button" class="dp-field"><span class="dp-val"></span><span class="dp-ico">▾</span></button><div class="dp-pop hidden"></div>';
+  _dp[id]={input:input,box:box,field:box.querySelector(".dp-field"),pop:box.querySelector(".dp-pop"),onChange:onChange||null,view:null};
+  _dp[id].field.addEventListener("click",function(e){ e.stopPropagation(); dpToggle(id); });
+  dpSyncLabel(id);
+}
+function dpSyncLabel(id){ var d=_dp[id]; if(!d) return; var v=d.input.value, el=d.box.querySelector(".dp-val"); el.textContent=v?dpFmt(v):"Select a date"; el.classList.toggle("dp-ph",!v); }
+function dpCloseAll(){ for(var k in _dp){ if(_dp[k]) _dp[k].pop.classList.add("hidden"); } }
+function dpToggle(id){ var d=_dp[id]; if(!d) return; var willOpen=d.pop.classList.contains("hidden"); dpCloseAll(); if(willOpen){ d.view=dpParse(d.input.value)||dpParse(dpMinOf(id))||new Date(); d.view.setDate(1); dpRender(id); d.pop.classList.remove("hidden"); dpPosition(id); } }
+function dpPosition(id){ var d=_dp[id], r=d.field.getBoundingClientRect(), w=Math.min(280,window.innerWidth-16); d.pop.style.width=w+"px"; var left=Math.min(r.left,window.innerWidth-w-8); if(left<8) left=8; d.pop.style.left=left+"px"; var h=d.pop.offsetHeight||320; d.pop.style.top=((r.bottom+6+h>window.innerHeight && r.top-6-h>8)?(r.top-6-h):(r.bottom+6))+"px"; }
+function dpRender(id){
+  var d=_dp[id], v=d.view, y=v.getFullYear(), m=v.getMonth();
+  var min=dpParse(dpMinOf(id)), first=new Date(y,m,1).getDay(), days=new Date(y,m+1,0).getDate(), cur=d.input.value;
+  var html='<div class="dp-head"><button type="button" class="dp-nav" data-nav="-1">‹</button><span class="dp-title">'+DP_MONTHS[m]+" "+y+'</span><button type="button" class="dp-nav" data-nav="1">›</button></div><div class="dp-grid">';
+  for(var i=0;i<7;i++) html+='<span class="dp-dow">'+DP_DOW[i]+'</span>';
+  for(var b=0;b<first;b++) html+='<span></span>';
+  for(var day=1;day<=days;day++){ var ds=y+"-"+dpPad(m+1)+"-"+dpPad(day), dis=min&&dpParse(ds)<min; html+='<button type="button" class="dp-day'+(ds===cur?" dp-sel":"")+'"'+(dis?" disabled":' data-d="'+ds+'"')+'>'+day+'</button>'; }
+  html+='</div><div class="dp-foot"><button type="button" class="dp-clear">Clear</button><button type="button" class="dp-today">Today</button></div>';
+  d.pop.innerHTML=html;
+  d.pop.querySelectorAll(".dp-nav").forEach(function(bn){ bn.onclick=function(e){ e.stopPropagation(); d.view.setMonth(d.view.getMonth()+Number(bn.getAttribute("data-nav"))); dpRender(id); dpPosition(id); }; });
+  d.pop.querySelectorAll(".dp-day[data-d]").forEach(function(bn){ bn.onclick=function(e){ e.stopPropagation(); dpPick(id,bn.getAttribute("data-d")); }; });
+  d.pop.querySelector(".dp-clear").onclick=function(e){ e.stopPropagation(); dpPick(id,""); };
+  d.pop.querySelector(".dp-today").onclick=function(e){ e.stopPropagation(); var t=new Date(), mn=dpParse(dpMinOf(id)); if(mn&&t<mn) return; dpPick(id,dpStr(t)); };
+}
+function dpPick(id,ds){ var d=_dp[id]; d.input.value=ds; dpSyncLabel(id); d.pop.classList.add("hidden"); if(d.onChange) d.onChange(); }
+function dpSet(id,v){ var d=_dp[id]; if(d){ d.input.value=v||""; dpSyncLabel(id); } else { var el=document.getElementById(id); if(el) el.value=v||""; } }
+function dpMin(id,v){ var d=_dp[id]; var el=d?d.input:document.getElementById(id); if(el) el.setAttribute("data-min",v||""); }
+document.addEventListener("click",dpCloseAll);
+window.addEventListener("scroll",dpCloseAll,true);
+dpInit("pkg-expiry"); dpInit("ts-start"); dpInit("ts-end");
+
 restoreSession();  // 載入時若有未逾時的登入記憶,自動還原免重新驗證
 </script>
 </body>

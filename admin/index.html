@@ -180,7 +180,7 @@
   <!-- PACKAGE MENU(方案菜單,首頁展示用) -->
   <div id="tab-menu" class="hidden">
     <div class="panel">
-      <span class="eyebrow">Add / edit package (套組)</span>
+      <span class="eyebrow">Add / edit package</span>
       <h2 style="font-size:1.6rem;margin-bottom:1rem;" id="pm-form-title">Add a package</h2>
       <input type="hidden" id="pm-row" />
       <label>Package name</label><input type="text" id="pm-name" placeholder="Starter Bundle" />
@@ -198,7 +198,7 @@
         <button class="btn hidden" id="pm-cancel" onclick="resetPmForm()">Cancel</button>
       </div>
       <div class="status" id="pm-status"></div>
-      <p class="muted" style="font-size:.8rem;margin-top:.6rem;">套組由多個「單堂課程 + 堂數」組成(課程在「Single courses」分頁建立)。客戶購買套組後,每個單堂課程各自入點;預約時分別選用扣點。</p>
+      <p class="muted" style="font-size:.8rem;margin-top:.6rem;">A package is made up of several single courses, each with a quantity (create the courses under the Single courses tab). When a customer orders a package, each single course is credited separately, and at booking they choose which credit to use.</p>
     </div>
     <div class="panel">
       <span class="eyebrow">Current packages</span>
@@ -211,7 +211,7 @@
     <div class="panel">
       <span class="eyebrow">Package orders</span>
       <h2 style="font-size:1.6rem;margin-bottom:.4rem;">Order requests</h2>
-      <p class="muted" style="font-size:.85rem;margin-bottom:1rem;">客戶從首頁送出的套餐訂購需求。聯絡收款後,到「Packages」分頁把套餐指派給該會員,再把這裡的狀態改成 fulfilled。</p>
+      <p class="muted" style="font-size:.85rem;margin-bottom:1rem;">Customer orders. After you collect payment, set the order's status to <b>Paid</b> here — this automatically activates the customer's credit so they can book. In-app purchases create the credit as "Awaiting payment" until you do this; home-page requests have no credit yet, so add one under the Packages tab. Use <b>Fulfilled</b> once everything is done.</p>
       <div id="orders-list"><p class="muted">Loading…</p></div>
     </div>
   </div>
@@ -229,24 +229,24 @@
       </div>
       <div class="row2">
         <div>
-          <label>課程方法 Method</label>
+          <label>Method</label>
           <select id="svc-method">
             <option value="gyrotonic">Gyrotonic</option>
             <option value="gyrokinesis">Gyrokinesis</option>
           </select>
         </div>
         <div>
-          <label>格式 Format</label>
+          <label>Format</label>
           <select id="svc-category">
-            <option value="individual">一對一 Private 1:1</option>
-            <option value="group">團體 Group</option>
+            <option value="individual">Private 1:1</option>
+            <option value="group">Group</option>
           </select>
         </div>
       </div>
-      <label>上課模式 Delivery</label>
+      <label>Delivery</label>
       <select id="svc-delivery">
-        <option value="studio">現場 In studio</option>
-        <option value="online">線上 Online</option>
+        <option value="studio">In studio</option>
+        <option value="online">Online</option>
       </select>
       <div style="display:flex;gap:.6rem;">
         <button class="btn btn--solid" id="svc-save" onclick="saveService()">Save</button>
@@ -305,7 +305,7 @@ let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複�
 const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminSavePackage","adminDeletePackage","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus"];
 async function api(p){
   const isMut=MUTATIONS.indexOf(p.action)!==-1;
-  if(isMut){ if(apiBusy) return {error:"處理中,請稍候…"}; apiBusy=true; }
+  if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }
   try{ const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(p)}); return JSON.parse(await r.text()); }
   finally{ if(isMut) apiBusy=false; }
 }
@@ -534,7 +534,7 @@ async function loadServices(){
 function renderServices(){
   if(!services.length){ $("svc-list").innerHTML='<p class="muted">No services yet.</p>'; return; }
   $("svc-list").innerHTML=services.map((s,i)=>`<div class="day-row" style="display:flex;justify-content:space-between;align-items:center;">
-    <div><div class="svc">${esc(s.name)}</div><div class="det">${CURRENCY}${s.price} · ${s.duration_min} min · ${s.method==="gyrokinesis"?"Gyrokinesis":s.method==="gyrotonic"?"Gyrotonic":"⚠ 未設方法"} · ${s.category==="group"?"團體 Group":"一對一 1:1"} · ${s.delivery==="online"?"線上 Online":"現場 Studio"}</div></div>
+    <div><div class="svc">${esc(s.name)}</div><div class="det">${CURRENCY}${s.price} · ${s.duration_min} min · ${s.method==="gyrokinesis"?"Gyrokinesis":s.method==="gyrotonic"?"Gyrotonic":"⚠ No method set"} · ${s.category==="group"?"Group":"1:1"} · ${s.delivery==="online"?"Online":"Studio"}</div></div>
     <div style="white-space:nowrap;"><button class="btn btn--sm" onclick="editSvc(${i})">Edit</button>
     <button class="btn btn--sm btn--danger" onclick="deleteSvc(${i})">Del</button></div></div>`).join("");
 }

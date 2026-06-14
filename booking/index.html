@@ -140,7 +140,7 @@
     <div class="panel">
       <span class="eyebrow">Buy</span>
       <h2>Sessions &amp; Packages</h2>
-      <p class="muted" style="font-size:.9rem;margin-bottom:.4rem;">Purchases are added to your account straight away so you can book immediately — we'll contact you to arrange payment.</p>
+      <p class="muted" style="font-size:.9rem;margin-bottom:.4rem;">Orders are added to your account right away and become bookable once we've confirmed your payment — we'll contact you to arrange it.</p>
       <div id="buy-products" style="margin-top:1rem;"><p class="muted">Loading…</p></div>
     </div>
   </div>
@@ -328,11 +328,12 @@ function renderCredits(){
   if(!packages.length){ el.innerHTML='<p class="muted">No sessions yet. Go to <b>Buy</b> to purchase a single session or a package.</p>'; return; }
   el.innerHTML='<div class="pkg-grid">'+packages.map(p=>{
     const pct=p.total_sessions>0?Math.max(0,Math.min(100,Math.round(p.remaining_sessions/p.total_sessions*100))):0;
-    const badge=p.status==="active"?'<span class="badge ok">Active</span>':p.status==="expired"?'<span class="badge danger">Expired</span>':'<span class="badge muted">Used up</span>';
+    const badge=p.status==="active"?'<span class="badge ok">Active</span>':p.status==="pending"?'<span class="badge warn">Awaiting payment</span>':p.status==="expired"?'<span class="badge danger">Expired</span>':'<span class="badge muted">Used up</span>';
+    const pendNote=p.status==="pending"?'<div class="meta" style="color:var(--warn);">Awaiting payment confirmation — bookable once confirmed.</div>':'';
     return `<div class="pkg"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><span class="name">${esc(p.package_name)}</span>${badge}</div>
       <div class="big">${p.remaining_sessions}<small> / ${p.total_sessions} left</small></div>
       <div class="bar"><span style="width:${pct}%"></span></div>
-      <div class="meta">Expires ${fmtDate(p.expiry_date)}</div></div>`;
+      <div class="meta">Expires ${fmtDate(p.expiry_date)}</div>${pendNote}</div>`;
   }).join("")+"</div>";
 }
 function renderBookings(){
@@ -441,17 +442,17 @@ function renderBuy(){
 }
 function buySingle(id){
   const s=singles.filter(x=>String(x.id)===String(id))[0]; if(!s) return;
-  askConfirm("Buy 1 × "+s.name+" for "+CURRENCY+s.price+"? It will be added to your account now, and we'll contact you to arrange payment.", async()=>{
+  askConfirm("Order 1 × "+s.name+" for "+CURRENCY+s.price+"? We'll contact you to arrange payment, and your session becomes bookable once we confirm it.", async()=>{
     try{ const d=await api({action:"purchaseSingle",email,sessionToken,course_id:id});
-      if(d.success){ toast(s.name+" added ✓"); await loadAccount(); switchTab("book"); } else toast(d.error||"Could not complete purchase");
+      if(d.success){ toast("Order placed ✓ — awaiting payment"); await loadAccount(); switchTab("account"); } else toast(d.error||"Could not complete purchase");
     }catch(e){ toast("Connection failed"); }
   });
 }
 function buyPackage(id){
   const p=products.filter(x=>String(x.id)===String(id))[0]; if(!p) return;
-  askConfirm("Buy "+p.name+" for "+CURRENCY+p.price+"? The sessions will be added to your account now, and we'll contact you to arrange payment.", async()=>{
+  askConfirm("Order "+p.name+" for "+CURRENCY+p.price+"? We'll contact you to arrange payment, and your sessions become bookable once we confirm it.", async()=>{
     try{ const d=await api({action:"purchasePackage",email,sessionToken,product_id:id});
-      if(d.success){ toast(p.name+" added ✓"); await loadAccount(); switchTab("book"); } else toast(d.error||"Could not complete purchase");
+      if(d.success){ toast("Order placed ✓ — awaiting payment"); await loadAccount(); switchTab("account"); } else toast(d.error||"Could not complete purchase");
     }catch(e){ toast("Connection failed"); }
   });
 }
@@ -459,7 +460,13 @@ function buyPackage(id){
 // ── BOOK ──
 function renderBookCredits(){
   const list=usableCredits(); const sel=$("b-credit");
-  if(!list.length){ $("book-none").classList.remove("hidden"); $("book-form").classList.add("hidden"); return; }
+  if(!list.length){
+    const pend=packages.filter(p=>p.status==="pending").length;
+    $("book-none").innerHTML=pend
+      ? '<p class="muted" style="margin-bottom:1rem;">Your order is awaiting payment confirmation. Once we confirm your payment, your sessions become active and you can book a time here.</p><button class="btn btn--solid" onclick="switchTab(\'account\')">View my account</button>'
+      : '<p class="muted" style="margin-bottom:1rem;">You don\'t have any sessions to book yet. Buy a single session or a package first.</p><button class="btn btn--solid" onclick="switchTab(\'buy\')">Go to Buy</button>';
+    $("book-none").classList.remove("hidden"); $("book-form").classList.add("hidden"); return;
+  }
   $("book-none").classList.add("hidden"); $("book-form").classList.remove("hidden");
   sel.innerHTML=list.map(p=>`<option value="${p.package_id}">${esc(p.package_name)} — ${p.remaining_sessions} left (exp. ${fmtDate(p.expiry_date)})</option>`).join("");
 }

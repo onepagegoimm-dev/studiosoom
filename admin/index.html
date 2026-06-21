@@ -139,11 +139,11 @@
 <div class="wrap hidden" id="main">
   <div class="tabs">
     <div class="tab active" data-tab="schedule" onclick="switchTab('schedule')">Schedule</div>
-    <div class="tab" data-tab="packages" onclick="switchTab('packages')">Packages</div>
-    <div class="tab" data-tab="menu" onclick="switchTab('menu')">Package menu</div>
-    <div class="tab" data-tab="orders" onclick="switchTab('orders')">Orders</div>
     <div class="tab" data-tab="services" onclick="switchTab('services')">Single courses</div>
+    <div class="tab" data-tab="menu" onclick="switchTab('menu')">Package menu</div>
     <div class="tab" data-tab="slots" onclick="switchTab('slots')">Time slots</div>
+    <div class="tab" data-tab="packages" onclick="switchTab('packages')">User status</div>
+    <div class="tab" data-tab="orders" onclick="switchTab('orders')">Orders</div>
   </div>
 
   <!-- SCHEDULE / CALENDAR -->
@@ -172,34 +172,15 @@
     </div>
   </div>
 
-  <!-- PACKAGES -->
+  <!-- USER STATUS(會員剩餘堂數與所購課程,唯讀)-->
   <div id="tab-packages" class="hidden">
     <div class="panel">
-      <span class="eyebrow">Grant / edit package</span>
-      <h2 style="font-size:1.6rem;margin-bottom:1rem;" id="pkg-form-title">Add a package</h2>
-      <input type="hidden" id="pkg-id" />
-      <div class="row2">
-        <div><label>Member email</label><input type="email" id="pkg-email" placeholder="member@email.com" /></div>
-        <div><label>Package name</label><input type="text" id="pkg-name" placeholder="10-session Gyrotonic" /></div>
-      </div>
-      <div class="row3">
-        <div><label>Total sessions</label><input type="number" id="pkg-total" min="1" placeholder="10" /></div>
-        <div><label>Expiry date</label><input type="hidden" id="pkg-expiry"><div class="dpick" data-for="pkg-expiry"></div></div>
-        <div><label>Price (£)</label><input type="number" id="pkg-price" min="0" placeholder="620" /></div>
-      </div>
-      <label>Note (optional)</label>
-      <input type="text" id="pkg-note" />
-      <div style="display:flex;gap:.6rem;">
-        <button class="btn btn--solid" id="pkg-save" onclick="savePackage()">Save package</button>
-        <button class="btn hidden" id="pkg-cancel" onclick="resetPkgForm()">Cancel</button>
-      </div>
-      <div class="status" id="pkg-status"></div>
-      <p class="muted" style="font-size:.8rem;margin-top:.6rem;">New packages start with 0 used sessions. Used count updates automatically as the member books and cancels.</p>
+      <span class="eyebrow">User status</span>
+      <h2 style="font-size:1.6rem;margin-bottom:.4rem;">Members &amp; remaining sessions</h2>
+      <p class="muted" style="font-size:.85rem;margin-bottom:1rem;">Each member's purchased courses and how many sessions they have left. Credits still awaiting payment are listed separately and can't be booked until the matching order is set to <b>Paid</b> under Orders.</p>
+      <input type="search" id="user-search" placeholder="Search by email…" oninput="renderUsers()" />
     </div>
-    <div class="panel">
-      <span class="eyebrow">All packages</span>
-      <div id="pkg-list" style="margin-top:.6rem;"><p class="muted">Loading…</p></div>
-    </div>
+    <div id="user-list"><p class="muted">Loading…</p></div>
   </div>
 
   <!-- PACKAGE MENU(方案菜單,首頁展示用) -->
@@ -327,7 +308,7 @@ function clearSession(){ try{ localStorage.removeItem('soom_admin'); }catch(e){}
 function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_admin')||'null'); if(s&&s.token&&s.exp>Date.now()){ token=s.token; enterMain(); } else { clearSession(); } }catch(e){} }
 
 let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複點擊
-const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminSavePackage","adminDeletePackage","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus"];
+const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus"];
 async function api(p){
   const isMut=MUTATIONS.indexOf(p.action)!==-1;
   if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }
@@ -436,41 +417,42 @@ function showDay(ds){
 }
 function toggleNote(id,btn){ const el=document.getElementById(id); if(!el) return; const nowHidden=el.classList.toggle("hidden"); btn.innerHTML=(nowHidden?"▸":"▾")+" Customer note"; }
 
-// ── packages ──
+// ── user status(會員點數彙整:每位會員的剩餘堂數與所購課程,唯讀)──
+let userCredits = [];   // adminListPackages 回傳的所有點數列(每列 = 一筆課程點數)
 async function loadPackages(){
-  try{ const d=await api({action:"adminListPackages",token}); renderPackages(d.packages||[]); }
-  catch(e){ $("pkg-list").innerHTML='<p class="muted">Could not load packages.</p>'; }
+  $("user-list").innerHTML='<p class="muted">Loading…</p>';
+  try{ const d=await api({action:"adminListPackages",token}); userCredits=d.packages||[]; renderUsers(); }
+  catch(e){ $("user-list").innerHTML='<p class="muted">Could not load.</p>'; }
 }
-function renderPackages(list){
-  if(!list.length){ $("pkg-list").innerHTML='<p class="muted">No packages yet.</p>'; return; }
-  $("pkg-list").innerHTML='<table><thead><tr><th>Email</th><th>Package</th><th>Left</th><th>Expiry</th><th>Status</th><th></th></tr></thead><tbody>'+
-    list.map(p=>`<tr>
-      <td>${esc(p.email||"")}</td><td>${esc(p.package_name||"")}</td>
-      <td>${p.remaining_sessions}/${p.total_sessions}</td><td>${p.expiry_date||""}</td>
-      <td><span class="badge ${p.status==="active"?"ok":p.status==="expired"?"danger":"pend"}">${p.status}</span></td>
-      <td style="white-space:nowrap;"><button class="btn btn--sm" onclick='editPkg(${esc(JSON.stringify(p))})'>Edit</button>
-      <button class="btn btn--sm btn--danger" onclick="deletePkg('${p.rowNum}')">Del</button></td>
-    </tr>`).join("")+'</tbody></table>';
+const CREDIT_ORDER={active:0,pending:1,expired:2,used_up:3};
+function creditBadge(s){ return s==="active"?"ok":s==="expired"?"danger":"pend"; }
+function creditLabel(s){ return s==="pending"?"awaiting payment":s==="used_up"?"used up":s; }
+function renderUsers(){
+  const se=$("user-search"); const q=(se&&se.value?se.value:"").trim().toLowerCase();
+  const byUser={};
+  userCredits.forEach(p=>{ const e=String(p.email||"").toLowerCase(); if(!e) return; (byUser[e]=byUser[e]||[]).push(p); });
+  let emails=Object.keys(byUser).sort();
+  if(q) emails=emails.filter(e=>e.indexOf(q)!==-1);
+  if(!emails.length){ $("user-list").innerHTML='<p class="muted">'+(q?"No members match that email.":"No members with credits yet.")+'</p>'; return; }
+  $("user-list").innerHTML=emails.map(e=>{
+    const credits=byUser[e];
+    let activeLeft=0, pendingLeft=0;
+    credits.forEach(c=>{ const r=Number(c.remaining_sessions)||0; if(c.status==="active") activeLeft+=r; else if(c.status==="pending") pendingLeft+=r; });
+    const sorted=credits.slice().sort((a,b)=>{ const oa=CREDIT_ORDER[a.status],ob=CREDIT_ORDER[b.status]; return (oa==null?9:oa)-(ob==null?9:ob); });
+    const rows=sorted.map(c=>`<tr>
+        <td>${esc(c.package_name||"")}</td>
+        <td>${c.remaining_sessions}/${c.total_sessions}</td>
+        <td>${c.expiry_date||""}</td>
+        <td><span class="badge ${creditBadge(c.status)}">${creditLabel(c.status)}</span></td></tr>`).join("");
+    return `<div class="panel" style="border-left:3px solid var(--ink);">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem;">
+        <div style="font-family:var(--font-display);font-size:1.25rem;">${esc(e)}</div>
+        <div style="font-size:.95rem;"><b>${activeLeft}</b> session${activeLeft===1?"":"s"} left${pendingLeft?(' <span class="muted">(+'+pendingLeft+' awaiting payment)</span>'):""}</div>
+      </div>
+      <table style="margin-top:.7rem;"><thead><tr><th>Course</th><th>Left</th><th>Expiry</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  }).join("");
 }
-function editPkg(p){
-  $("pkg-id").value=p.rowNum||""; $("pkg-email").value=p.email||""; $("pkg-name").value=p.package_name||"";
-  $("pkg-total").value=p.total_sessions||""; dpSet("pkg-expiry",p.expiry_date||""); $("pkg-price").value=p.price||""; $("pkg-note").value=p.note||"";
-  $("pkg-form-title").textContent="Edit package"; $("pkg-cancel").classList.remove("hidden");
-  window.scrollTo({top:0,behavior:"smooth"});
-}
-function resetPkgForm(){ ["pkg-id","pkg-email","pkg-name","pkg-total","pkg-expiry","pkg-price","pkg-note"].forEach(i=>$(i).value=""); dpSet("pkg-expiry",""); $("pkg-form-title").textContent="Add a package"; $("pkg-cancel").classList.add("hidden"); setStatus("pkg-status","",""); }
-async function savePackage(){
-  const pkg={ rowNum:$("pkg-id").value||undefined, email:$("pkg-email").value.trim(), package_name:$("pkg-name").value.trim(),
-    total_sessions:Number($("pkg-total").value)||0, expiry_date:$("pkg-expiry").value, price:Number($("pkg-price").value)||0, note:$("pkg-note").value.trim() };
-  if(!pkg.email||!pkg.package_name||!pkg.total_sessions||!pkg.expiry_date) return setStatus("pkg-status","Email, name, total sessions and expiry are required","err");
-  const b=$("pkg-save"); b.disabled=true; b.textContent="Saving…";
-  try{ const d=await api({action:"adminSavePackage",token,package:pkg});
-    if(d.success){ toast("Package saved"); resetPkgForm(); loadPackages(); } else setStatus("pkg-status",d.error||"Save failed","err");
-  }catch(e){ setStatus("pkg-status","Connection failed","err"); }
-  b.disabled=false; b.textContent="Save package";
-}
-async function deletePkg(rowNum){ if(!confirm("Delete this package?")) return;
-  try{ const d=await api({action:"adminDeletePackage",token,rowNum}); if(d.success){ toast("Deleted"); loadPackages(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
 
 // ── packages(套組:多單堂組合) ──
 let pmCourses = [];   // 單堂課程清單(供下拉)
@@ -638,7 +620,7 @@ function dpSet(id,v){ var d=_dp[id]; if(d){ d.input.value=v||""; dpSyncLabel(id)
 function dpMin(id,v){ var d=_dp[id]; var el=d?d.input:document.getElementById(id); if(el) el.setAttribute("data-min",v||""); }
 document.addEventListener("click",dpCloseAll);
 window.addEventListener("scroll",dpCloseAll,true);
-dpInit("pkg-expiry"); dpInit("ts-start"); dpInit("ts-end");
+dpInit("ts-start"); dpInit("ts-end");
 
 restoreSession();  // 載入時若有未逾時的登入記憶,自動還原免重新驗證
 </script>

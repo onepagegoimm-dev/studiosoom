@@ -159,7 +159,6 @@
       </div>
       <div class="legend">
         <span><i class="dot ok"></i>Confirmed</span>
-        <span><i class="dot pend"></i>Pending</span>
         <span><i class="dot warn"></i>Rescheduled</span>
         <span><i class="dot danger"></i>Cancelled</span>
       </div>
@@ -379,7 +378,7 @@ async function loadCalendar(){
 }
 function statusClass(b){ const s=(b.booking_status||"").toLowerCase();
   if(s==="cancelled") return "danger"; if((b.change_type||"")==="rescheduled") return "warn";
-  if(s==="confirmed"||s==="paid"||s==="deposit_paid"||s==="completed") return "ok"; return "pend"; }
+  return "ok"; }
 function renderCalendar(){
   const byDate={}; calBookings.forEach(b=>{ (byDate[b.booking_date]=byDate[b.booking_date]||[]).push(b); });
   Object.keys(byDate).forEach(k=>byDate[k].sort((a,b)=>(a.booking_time||"").localeCompare(b.booking_time||"")));

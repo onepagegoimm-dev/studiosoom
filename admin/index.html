@@ -178,7 +178,11 @@
       <span class="eyebrow">User status</span>
       <h2 style="font-size:1.6rem;margin-bottom:.4rem;">Members &amp; remaining sessions</h2>
       <p class="muted" style="font-size:.85rem;margin-bottom:1rem;">Each member's purchased courses and how many sessions they have left. Credits still awaiting payment are listed separately and can't be booked until the matching order is set to <b>Paid</b> under Orders.</p>
-      <input type="search" id="user-search" placeholder="Search by email…" oninput="renderUsers()" />
+      <div class="row3" style="margin-bottom:0;">
+        <div><label>First name</label><select id="user-filter-first" onchange="onUserFilter('first')"><option value="">All</option></select></div>
+        <div><label>Last name</label><select id="user-filter-last" onchange="onUserFilter('last')"><option value="">All</option></select></div>
+        <div><label>Email</label><select id="user-filter-email" onchange="onUserFilter('email')"><option value="">All</option></select></div>
+      </div>
     </div>
     <div id="user-list"><p class="muted">Loading…</p></div>
   </div>
@@ -418,24 +422,60 @@ function showDay(ds){
 function toggleNote(id,btn){ const el=document.getElementById(id); if(!el) return; const nowHidden=el.classList.toggle("hidden"); btn.innerHTML=(nowHidden?"▸":"▾")+" Customer note"; }
 
 // ── user status(會員點數彙整:每位會員的剩餘堂數與所購課程,唯讀)──
-let userCredits = [];   // adminListPackages 回傳的所有點數列(每列 = 一筆課程點數)
+let userCredits = [];   // adminListPackages 回傳的所有點數列(每列 = 一筆課程點數,含會員 name)
 async function loadPackages(){
   $("user-list").innerHTML='<p class="muted">Loading…</p>';
-  try{ const d=await api({action:"adminListPackages",token}); userCredits=d.packages||[]; renderUsers(); }
+  try{ const d=await api({action:"adminListPackages",token}); userCredits=d.packages||[]; buildUserFilters(); renderUsers(); }
   catch(e){ $("user-list").innerHTML='<p class="muted">Could not load.</p>'; }
 }
 const CREDIT_ORDER={active:0,pending:1,expired:2,used_up:3};
 function creditBadge(s){ return s==="active"?"ok":s==="expired"?"danger":"pend"; }
 function creditLabel(s){ return s==="pending"?"awaiting payment":s==="used_up"?"used up":s; }
+// 解析會員姓名:優先用 first_name/last_name;舊資料只有 name 時,以第一個空白拆成 first + last
+function splitName(c){
+  let f=String(c.first_name||"").trim(), l=String(c.last_name||"").trim();
+  if(!f && !l){ const n=String(c.name||"").trim(); if(n){ const p=n.split(/\s+/); f=p.shift()||""; l=p.join(" "); } }
+  const full=(f||l)?((f+" "+l).trim()):"";
+  return {first:f, last:l, full:full};
+}
+// 每個 email → {first,last,full}(取該 email 第一筆點數的會員資料)
+function emailToName(){ const m={}; userCredits.forEach(c=>{ const e=String(c.email||"").trim().toLowerCase(); if(e&&!(e in m)) m[e]=splitName(c); }); return m; }
+function buildUserFilters(){
+  const nameMap=emailToName();
+  const emails=Object.keys(nameMap).sort();
+  const firsts=[], lasts=[], sf={}, sl={};
+  emails.forEach(e=>{ const n=nameMap[e];
+    if(n.first && !sf[n.first.toLowerCase()]){ sf[n.first.toLowerCase()]=1; firsts.push(n.first); }
+    if(n.last && !sl[n.last.toLowerCase()]){ sl[n.last.toLowerCase()]=1; lasts.push(n.last); }
+  });
+  firsts.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
+  lasts.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
+  $("user-filter-first").innerHTML='<option value="">All</option>'+firsts.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  $("user-filter-last").innerHTML='<option value="">All</option>'+lasts.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  $("user-filter-email").innerHTML='<option value="">All</option>'+emails.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join("");
+}
+function onUserFilter(which){
+  // 三個下拉互斥:選一個就清掉另外兩個
+  if(which!=="first") $("user-filter-first").value="";
+  if(which!=="last") $("user-filter-last").value="";
+  if(which!=="email") $("user-filter-email").value="";
+  renderUsers();
+}
 function renderUsers(){
-  const se=$("user-search"); const q=(se&&se.value?se.value:"").trim().toLowerCase();
+  const fFirst=($("user-filter-first").value||"").trim().toLowerCase();
+  const fLast=($("user-filter-last").value||"").trim().toLowerCase();
+  const fEmail=($("user-filter-email").value||"").trim().toLowerCase();
+  const nameMap=emailToName();
   const byUser={};
   userCredits.forEach(p=>{ const e=String(p.email||"").toLowerCase(); if(!e) return; (byUser[e]=byUser[e]||[]).push(p); });
   let emails=Object.keys(byUser).sort();
-  if(q) emails=emails.filter(e=>e.indexOf(q)!==-1);
-  if(!emails.length){ $("user-list").innerHTML='<p class="muted">'+(q?"No members match that email.":"No members with credits yet.")+'</p>'; return; }
+  if(fEmail) emails=emails.filter(e=>e===fEmail);
+  if(fFirst) emails=emails.filter(e=>(nameMap[e]?nameMap[e].first:"").toLowerCase()===fFirst);
+  if(fLast) emails=emails.filter(e=>(nameMap[e]?nameMap[e].last:"").toLowerCase()===fLast);
+  if(!emails.length){ $("user-list").innerHTML='<p class="muted">No members match.</p>'; return; }
   $("user-list").innerHTML=emails.map(e=>{
     const credits=byUser[e];
+    const full=(nameMap[e]?nameMap[e].full:"")||"";
     let activeLeft=0, pendingLeft=0;
     credits.forEach(c=>{ const r=Number(c.remaining_sessions)||0; if(c.status==="active") activeLeft+=r; else if(c.status==="pending") pendingLeft+=r; });
     const sorted=credits.slice().sort((a,b)=>{ const oa=CREDIT_ORDER[a.status],ob=CREDIT_ORDER[b.status]; return (oa==null?9:oa)-(ob==null?9:ob); });
@@ -444,9 +484,10 @@ function renderUsers(){
         <td>${c.remaining_sessions}/${c.total_sessions}</td>
         <td>${c.expiry_date||""}</td>
         <td><span class="badge ${creditBadge(c.status)}">${creditLabel(c.status)}</span></td></tr>`).join("");
+    const title=full?(esc(full)+' <span class="muted" style="font-family:var(--font-ui);font-size:.82rem;">('+esc(e)+')</span>'):esc(e);
     return `<div class="panel" style="border-left:3px solid var(--ink);">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem;">
-        <div style="font-family:var(--font-display);font-size:1.25rem;">${esc(e)}</div>
+        <div style="font-family:var(--font-display);font-size:1.25rem;">${title}</div>
         <div style="font-size:.95rem;"><b>${activeLeft}</b> session${activeLeft===1?"":"s"} left${pendingLeft?(' <span class="muted">(+'+pendingLeft+' awaiting payment)</span>'):""}</div>
       </div>
       <table style="margin-top:.7rem;"><thead><tr><th>Course</th><th>Left</th><th>Expiry</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>

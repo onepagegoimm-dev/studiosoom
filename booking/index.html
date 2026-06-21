@@ -124,7 +124,8 @@
       <button class="btn btn--solid" id="send-btn" onclick="sendCode()">Send code</button>
     </div>
     <div class="hidden" id="profile-row" style="margin-top:.8rem;display:flex;flex-direction:column;gap:.6rem;">
-      <input type="text" id="login-name" placeholder="Name" autocomplete="name" />
+      <input type="text" id="login-first" placeholder="First name" autocomplete="given-name" />
+      <input type="text" id="login-last" placeholder="Last name" autocomplete="family-name" />
       <input type="tel" id="login-phone" placeholder="Phone (optional)" autocomplete="tel" />
     </div>
     <div class="verify-row hidden" id="code-row" style="margin-top:.8rem;">
@@ -284,22 +285,22 @@ async function sendCode(){
   const codeVisible=!$("code-row").classList.contains("hidden");
   // 已展開資料欄(首次補填)或已在收碼階段(Resend)→ 直接寄碼並帶上姓名電話
   if(profileVisible||codeVisible){
-    if(profileVisible && !$("login-name").value.trim()) return setStatus("login-status","Please enter your name","err");
-    return doSendCode(v, $("login-name").value.trim(), $("login-phone").value.trim());
+    if(profileVisible && !$("login-first").value.trim()) return setStatus("login-status","Please enter your first name","err");
+    return doSendCode(v, $("login-first").value.trim(), $("login-last").value.trim(), $("login-phone").value.trim());
   }
   // 第一次按:先判斷此 Email 是否需要補資料(新會員,或舊資料沒名字)
   const b=$("send-btn"); b.disabled=true; b.textContent="…";
   try{
     const cm=await api({action:"checkMember",email:v});
-    if(cm && cm.exists && cm.hasName){ return doSendCode(v,"",""); }
-    $("profile-row").classList.remove("hidden"); try{$("login-name").focus();}catch(e){}
+    if(cm && cm.exists && cm.hasName){ return doSendCode(v,"","",""); }
+    $("profile-row").classList.remove("hidden"); try{$("login-first").focus();}catch(e){}
     setStatus("login-status",(cm&&cm.exists)?"Please add your name and phone (one time only)":"First time here? Please leave your name and phone (one time only)","");
     b.disabled=false; b.textContent="Send code";
   }catch(e){ setStatus("login-status","Connection failed. Check API_URL.","err"); b.disabled=false; b.textContent="Send code"; }
 }
-async function doSendCode(v,name,phone){
+async function doSendCode(v,first,last,phone){
   const b=$("send-btn"); b.disabled=true; b.textContent="Sending…";
-  try{ const d=await api({action:"sendVerifyCode",email:v,name:name,phone:phone});
+  try{ const d=await api({action:"sendVerifyCode",email:v,first_name:first,last_name:last,phone:phone});
     if(d.success){ $("code-row").classList.remove("hidden"); $("profile-row").classList.add("hidden"); setStatus("login-status","Code sent — check your inbox.","ok");
       let s=60;b.textContent=s+"s";const t=setInterval(()=>{s--;b.textContent=s+"s";if(s<=0){clearInterval(t);b.disabled=false;b.textContent="Resend";}},1000);
     } else { setStatus("login-status",d.error||"Could not send code","err"); b.disabled=false; b.textContent="Send code"; }

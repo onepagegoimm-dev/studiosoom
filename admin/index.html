@@ -82,6 +82,11 @@
   .toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.84rem;padding:.7rem 1.2rem;border-radius:100px;opacity:0;transition:opacity .3s;z-index:80;}
   .toast.show{opacity:1;}
   @media(max-width:680px){ .row2,.row3{grid-template-columns:1fr;} .cell{min-height:64px;} .legend{font-size:.66rem;} }
+  /* 排程用時段選擇 */
+  .slots{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;}
+  .slot{border:1px solid var(--line);background:#fff;padding:.5rem .85rem;font-size:.9rem;border-radius:2px;cursor:pointer;transition:.2s;}
+  .slot:hover{border-color:var(--ink);} .slot.sel{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .slot .cap{font-size:.68rem;color:var(--muted);margin-left:.3rem;} .slot.sel .cap{color:rgba(255,255,255,.7);}
   /* 自訂英文日期選擇器(取代原生 input[type=date],不受瀏覽器語系影響) */
   .dpick{position:relative;}
   .dp-field{width:100%;display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.6rem .8rem;border:1px solid var(--line);background:#fff;border-radius:4px;font-family:inherit;font-size:.95rem;color:var(--ink);cursor:pointer;text-align:left;}
@@ -139,6 +144,7 @@
 <div class="wrap hidden" id="main">
   <div class="tabs">
     <div class="tab active" data-tab="schedule" onclick="switchTab('schedule')">Schedule</div>
+    <div class="tab" data-tab="requests" onclick="switchTab('requests')">Requests</div>
     <div class="tab" data-tab="services" onclick="switchTab('services')">Single courses</div>
     <div class="tab" data-tab="menu" onclick="switchTab('menu')">Package menu</div>
     <div class="tab" data-tab="slots" onclick="switchTab('slots')">Time slots</div>
@@ -168,6 +174,31 @@
       <span class="eyebrow">Day detail</span>
       <h2 id="day-title" style="font-size:1.5rem;">Select a day</h2>
       <div id="day-list"><p class="muted">Click a day in the calendar to see its bookings.</p></div>
+    </div>
+  </div>
+
+  <!-- REQUESTS(客戶預約需求 → 代客排程) -->
+  <div id="tab-requests" class="hidden">
+    <div class="panel" id="sched-panel" style="display:none;border-left:3px solid var(--ink);">
+      <span class="eyebrow">Schedule a session</span>
+      <h2 id="sched-sub" style="font-size:1.4rem;margin-bottom:.9rem;"></h2>
+      <div class="row2">
+        <div><label>Use which credit?</label><select id="sched-credit"></select></div>
+        <div><label>Date</label><input type="hidden" id="sched-date"><div class="dpick" data-for="sched-date"></div></div>
+      </div>
+      <label>Time</label>
+      <div class="slots" id="sched-slots"><span class="muted" style="font-size:.88rem;">Choose a date.</span></div>
+      <div style="display:flex;gap:.6rem;">
+        <button class="btn btn--solid" id="sched-go" onclick="confirmSchedule()">Schedule</button>
+        <button class="btn" onclick="closeScheduler()">Cancel</button>
+      </div>
+      <div class="status" id="sched-status"></div>
+    </div>
+    <div class="panel">
+      <span class="eyebrow">Booking requests</span>
+      <h2 style="font-size:1.6rem;margin-bottom:.4rem;">Customer requests</h2>
+      <p class="muted" style="font-size:.85rem;margin-bottom:1rem;">New requests first. Pick a credit, date and time to schedule the customer in — this deducts a session and books it on their behalf. If a customer has no active credit, confirm their payment under <b>Orders</b> first. Use <b>Dismiss</b> to close a request without booking.</p>
+      <div id="requests-list"><p class="muted">Loading…</p></div>
     </div>
   </div>
 
@@ -303,6 +334,7 @@ let token = "";
 let calYear, calMonth;        // month: 0-11
 let calBookings = [];
 let services = [];
+let reqList = [], schedReq = null, schedSlot = null;
 
 // 登入記憶:時效內重新整理免重新驗證(測試 5 分鐘,正式可改 30)
 const REMEMBER_MIN = 30;
@@ -311,7 +343,7 @@ function clearSession(){ try{ localStorage.removeItem('soom_admin'); }catch(e){}
 function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_admin')||'null'); if(s&&s.token&&s.exp>Date.now()){ token=s.token; enterMain(); } else { clearSession(); } }catch(e){} }
 
 let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複點擊
-const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus"];
+const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus","adminScheduleFromRequest","adminUpdateRequestStatus"];
 async function api(p){
   const isMut=MUTATIONS.indexOf(p.action)!==-1;
   if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }
@@ -352,12 +384,13 @@ function signOut(){ clearSession(); token=""; location.reload(); }
 function enterMain(){
   $("login").classList.add("hidden"); $("main").classList.remove("hidden"); $("signout").classList.remove("hidden");
   const t=new Date(); calYear=t.getFullYear(); calMonth=t.getMonth();
-  const ds=todayStr(); dpSet("ts-start",ds); dpSet("ts-end",ds); dpMin("ts-start",ds); dpMin("ts-end",ds);
+  const ds=todayStr(); dpSet("ts-start",ds); dpSet("ts-end",ds); dpMin("ts-start",ds); dpMin("ts-end",ds); dpMin("sched-date",ds);
   loadCalendar();
 }
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
-  ["schedule","packages","menu","orders","services","slots"].forEach(n=>$("tab-"+n).classList.toggle("hidden",n!==name));
+  ["schedule","requests","packages","menu","orders","services","slots"].forEach(n=>$("tab-"+n).classList.toggle("hidden",n!==name));
+  if(name==="requests") loadRequests();
   if(name==="packages") loadPackages();
   if(name==="menu") loadPackageProducts();
   if(name==="orders") loadOrders();
@@ -575,6 +608,75 @@ async function updateOrder(rowNum,status){
   catch(e){ toast("Connection failed"); }
 }
 
+// ── booking requests(客戶需求 → 代客排程) ──
+async function loadRequests(){
+  try{ const d=await api({action:"adminListBookingRequests",token}); reqList=d.requests||[]; renderRequests(); }
+  catch(e){ $("requests-list").innerHTML='<p class="muted">Could not load requests.</p>'; }
+}
+function reqBadge(s){ return s==="scheduled"?'<span class="badge ok">Scheduled</span>':s==="dismissed"?'<span class="badge pend">Dismissed</span>':'<span class="badge warn">New</span>'; }
+function renderRequests(){
+  if(!reqList.length){ $("requests-list").innerHTML='<p class="muted">No requests yet.</p>'; return; }
+  $("requests-list").innerHTML=reqList.map(r=>{
+    const creditInfo=(r.credits&&r.credits.length)?r.credits.map(c=>esc(c.package_name)+" ("+c.remaining_sessions+")").join(", "):"No active credits";
+    const actions=r.status==="new"
+      ? `<button class="btn btn--sm" onclick="openScheduler('${r.request_id}')">Schedule</button><button class="btn btn--sm btn--danger" onclick="dismissRequest('${r.request_id}')">Dismiss</button>`
+      : "";
+    return `<div class="day-row">
+      <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
+        <div><div class="svc">${esc(r.name||r.email)}</div>
+        <div class="det">${esc(r.email)}${r.phone?(" · "+esc(r.phone)):""} · ${esc(r.timestamp||"")}</div></div>
+        <div>${reqBadge(r.status)}</div>
+      </div>
+      <div class="note-body" style="margin-top:.5rem;">${esc(r.note)}</div>
+      <div class="muted" style="font-size:.78rem;margin-top:.4rem;">Active credits: ${creditInfo}</div>
+      ${actions?`<div style="margin-top:.6rem;display:flex;gap:.4rem;">${actions}</div>`:""}
+    </div>`;
+  }).join("");
+}
+function openScheduler(rid){
+  schedReq=reqList.find(r=>r.request_id===rid); if(!schedReq) return;
+  schedSlot=null;
+  $("sched-sub").textContent=(schedReq.name||schedReq.email)+" — pick a credit, date & time";
+  const creds=schedReq.credits||[];
+  $("sched-credit").innerHTML=creds.length
+    ? creds.map(c=>`<option value="${esc(c.package_id)}">${esc(c.package_name)} — ${c.remaining_sessions} left (exp. ${esc(c.expiry_date||"")})</option>`).join("")
+    : '<option value="">(no active credit — confirm payment under Orders first)</option>';
+  if(schedReq.package_id){ const opt=Array.from($("sched-credit").options).find(o=>o.value===schedReq.package_id); if(opt) $("sched-credit").value=schedReq.package_id; }
+  dpSet("sched-date",""); schedSlot=null;
+  $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Choose a date.</span>';
+  setStatus("sched-status","","");
+  $("sched-panel").style.display=""; $("sched-panel").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function closeScheduler(){ schedReq=null; schedSlot=null; $("sched-panel").style.display="none"; }
+async function loadSchedSlots(){
+  const date=$("sched-date").value; schedSlot=null;
+  if(!date) return;
+  $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Loading…</span>';
+  try{ const d=await api({action:"getTimeSlots",date}); const slots=d.slots||[];
+    if(!slots.length){ $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">No open times on this date.</span>'; return; }
+    $("sched-slots").innerHTML=slots.map(s=>`<span class="slot" onclick="pickSchedSlot(this,'${s.time_slot}')">${s.time_slot}<span class="cap">${s.remaining} left</span></span>`).join("");
+  }catch(e){ $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Could not load times.</span>'; }
+}
+function pickSchedSlot(el,t){ schedSlot=t; document.querySelectorAll("#sched-slots .slot").forEach(s=>s.classList.remove("sel")); el.classList.add("sel"); }
+async function confirmSchedule(){
+  if(!schedReq) return;
+  const packageId=$("sched-credit").value, date=$("sched-date").value;
+  if(!packageId) return setStatus("sched-status","This customer has no active credit — confirm payment under Orders first.","err");
+  if(!date||!schedSlot) return setStatus("sched-status","Choose a date and time","err");
+  const btn=$("sched-go"); btn.disabled=true; btn.textContent="Scheduling…";
+  try{
+    const d=await api({action:"adminScheduleFromRequest",token,request_id:schedReq.request_id,email:schedReq.email,package_id:packageId,booking_date:date,booking_time:schedSlot});
+    if(d.success){ toast("Scheduled ✓"); closeScheduler(); loadRequests(); loadCalendar(); }
+    else setStatus("sched-status",d.error||"Could not schedule","err");
+  }catch(e){ setStatus("sched-status","Connection failed","err"); }
+  btn.disabled=false; btn.textContent="Schedule";
+}
+async function dismissRequest(rid){
+  if(!confirm("Dismiss this request without booking?")) return;
+  try{ const d=await api({action:"adminUpdateRequestStatus",token,request_id:rid,status:"dismissed"}); if(d.success){ toast("Dismissed"); loadRequests(); } else toast(d.error||"Failed"); }
+  catch(e){ toast("Connection failed"); }
+}
+
 // ── services ──
 async function loadServices(){
   try{ const d=await api({action:"adminListServices",token}); services=d.services||[]; renderServices(); }
@@ -660,7 +762,7 @@ function dpSet(id,v){ var d=_dp[id]; if(d){ d.input.value=v||""; dpSyncLabel(id)
 function dpMin(id,v){ var d=_dp[id]; var el=d?d.input:document.getElementById(id); if(el) el.setAttribute("data-min",v||""); }
 document.addEventListener("click",dpCloseAll);
 window.addEventListener("scroll",dpCloseAll,true);
-dpInit("ts-start"); dpInit("ts-end");
+dpInit("ts-start"); dpInit("ts-end"); dpInit("sched-date",loadSchedSlots);
 
 restoreSession();  // 載入時若有未逾時的登入記憶,自動還原免重新驗證
 </script>

@@ -624,27 +624,30 @@ function renderRequests(){
     const actions=r.status==="new"
       ? `<button class="btn btn--sm" onclick="openScheduler('${r.request_id}')">Schedule</button><button class="btn btn--sm btn--danger" onclick="dismissRequest('${r.request_id}')">Dismiss</button>`
       : "";
+    const wants=r.requested_date?`<div class="reason" style="margin-top:.5rem;"><strong>Wants:</strong> ${r.requested_course?esc(r.requested_course)+" · ":""}${esc(r.requested_date)}${r.requested_time?(" "+esc(r.requested_time)):""}</div>`:"";
+    const noteHtml=r.note?`<div class="note-body" style="margin-top:.5rem;">${esc(r.note)}</div>`:"";
     return `<div class="day-row">
       <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
         <div><div class="svc">${esc(r.name||r.email)}</div>
         <div class="det">${esc(r.email)}${r.phone?(" · "+esc(r.phone)):""} · ${esc(r.timestamp||"")}</div></div>
         <div>${reqBadge(r.status)}</div>
       </div>
-      <div class="note-body" style="margin-top:.5rem;">${esc(r.note)}</div>
+      ${wants}${noteHtml}
       <div class="muted" style="font-size:.78rem;margin-top:.4rem;">Active credits: ${creditInfo}</div>
       ${actions?`<div style="margin-top:.6rem;display:flex;gap:.4rem;">${actions}</div>`:""}
     </div>`;
   }).join("");
 }
-// 從客戶需求排程
-function openScheduler(rid){
+// 從客戶需求排程(帶入其想要的課程/日期/時段,可再改)
+async function openScheduler(rid){
   const r=reqList.find(x=>x.request_id===rid); if(!r) return;
   schedCtx={ email:r.email, requestId:r.request_id, preselect:r.package_id||"" };
   schedSlot=null;
   $("sched-member-row").classList.add("hidden");
-  $("sched-sub").textContent=(r.name||r.email)+" — pick course, date & time";
+  $("sched-sub").textContent=(r.name||r.email)+" — confirm course, date & time";
   fillSchedCredits(r.credits||[], schedCtx.preselect);
   resetSchedDateTime(); showSchedPanel();
+  if(r.requested_date){ dpSet("sched-date", r.requested_date); await loadSchedSlots(r.requested_time||""); }
 }
 // 直接幫某會員預約(不需 request):選會員 → 課程 → 日期 → 時段
 async function openSchedulerDirect(){
@@ -690,13 +693,14 @@ async function loadBookingMembers(){
     bookingMembers=Object.keys(map).sort().map(k=>map[k]);
   }catch(e){ bookingMembers=[]; }
 }
-async function loadSchedSlots(){
+async function loadSchedSlots(preselectTime){
   const date=$("sched-date").value; schedSlot=null;
   if(!date) return;
   $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Loading…</span>';
   try{ const d=await api({action:"getTimeSlots",date}); const slots=d.slots||[];
     if(!slots.length){ $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">No open times on this date.</span>'; return; }
-    $("sched-slots").innerHTML=slots.map(s=>`<span class="slot" onclick="pickSchedSlot(this,'${s.time_slot}')">${s.time_slot}<span class="cap">${s.remaining} left</span></span>`).join("");
+    $("sched-slots").innerHTML=slots.map(s=>`<span class="slot${(preselectTime&&s.time_slot===preselectTime)?" sel":""}" onclick="pickSchedSlot(this,'${s.time_slot}')">${s.time_slot}<span class="cap">${s.remaining} left</span></span>`).join("");
+    if(preselectTime && slots.some(s=>s.time_slot===preselectTime)) schedSlot=preselectTime;
   }catch(e){ $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Could not load times.</span>'; }
 }
 function pickSchedSlot(el,t){ schedSlot=t; document.querySelectorAll("#sched-slots .slot").forEach(s=>s.classList.remove("sel")); el.classList.add("sel"); }

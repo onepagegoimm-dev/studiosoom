@@ -526,11 +526,7 @@ function renderMyRequests(){
     return `<div class="bk"><div style="flex:1;"><div class="when" style="white-space:pre-wrap;">${esc(r.note)}</div><div class="muted" style="font-size:.78rem;margin-top:.2rem;">${esc(r.created)}</div></div><div class="actions">${badge}</div></div>`;
   }).join("");
 }
-function requestFor(ds,time){
-  switchTab("request");
-  const t=$("rq-note");
-  if(t){ t.value="I'd like to book "+fmtDate(ds)+(time?(" at "+time):"")+"."; checkReqReady(); try{t.focus();}catch(e){} }
-}
+function goToRequest(){ switchTab("request"); try{$("rq-note").focus();}catch(e){} }
 
 // ── WHAT'S ON(可上課規劃檢視:月曆 + 日期選擇器,可切換我的課/全部開放) ──
 const WO_DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -582,18 +578,20 @@ function renderWoDayDetail(){
   if(woMode==="mine"){
     const list=usableCredits();
     if(!list.length){
-      html+='<p class="muted" style="margin-bottom:.8rem;">You don\'t have any usable sessions yet. Go to <b>Buy</b> first, then request a time.</p>';
+      html+='<p class="muted" style="margin-bottom:.8rem;">You don\'t have any usable sessions yet. Go to <b>Buy</b> first.</p>';
     } else {
-      html+='<div class="muted" style="font-size:.8rem;margin-bottom:.35rem;">Courses you could request for this day:</div>';
+      html+='<div class="muted" style="font-size:.8rem;margin-bottom:.35rem;">Your courses you could take this day:</div>';
       html+='<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.1rem;">'+list.map(p=>`<span class="badge ok">${esc(p.package_name)} · ${p.remaining_sessions} left</span>`).join("")+'</div>';
     }
   }
   if(!woSlots.length){
-    html+='<p class="muted">No open times on this day. Try another day.</p>';
+    html+='<p class="muted" style="margin-bottom:1rem;">No openings on this day. Try another day.</p>';
   } else {
-    html+='<div class="muted" style="font-size:.8rem;margin-bottom:.35rem;">Open times:</div>';
-    html+=woSlots.map(s=>`<div class="req-row"><div>${s.time_slot} <span class="muted" style="font-size:.8rem;">· ${s.remaining} left</span></div><button class="btn btn--sm" onclick="requestFor('${woSelected}','${s.time_slot}')">Request</button></div>`).join("");
+    html+='<div class="muted" style="font-size:.8rem;margin-bottom:.35rem;">Times with openings on this day:</div>';
+    html+='<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.1rem;">'+woSlots.map(s=>`<span class="badge muted">${s.time_slot}</span>`).join("")+'</div>';
   }
+  html+='<p class="muted" style="font-size:.85rem;margin:.2rem 0 1rem;">The studio arranges the actual time for you — this is just to help you plan. Send a request with the days and times that suit you, and we\'ll confirm it.</p>';
+  html+='<button class="btn btn--solid" onclick="goToRequest()">Request a session</button>';
   el.innerHTML=html;
 }
 async function onWoDate(){ const v=$("wo-date").value; if(!v) return; const p=v.split("-"); woYear=Number(p[0]); woMonth=Number(p[1])-1; await woLoadMonth(); woSelectDay(v); }

@@ -180,24 +180,27 @@
   <!-- REQUESTS(客戶預約需求 → 代客排程) -->
   <div id="tab-requests" class="hidden">
     <div class="panel" id="sched-panel" style="display:none;border-left:3px solid var(--ink);">
-      <span class="eyebrow">Schedule a session</span>
+      <span class="eyebrow">Book a session</span>
       <h2 id="sched-sub" style="font-size:1.4rem;margin-bottom:.9rem;"></h2>
+      <div id="sched-member-row" class="hidden"><label>Member</label><select id="sched-member" onchange="onSchedMember()"></select></div>
       <div class="row2">
-        <div><label>Use which credit?</label><select id="sched-credit"></select></div>
+        <div><label>Course / credit</label><select id="sched-credit"></select></div>
         <div><label>Date</label><input type="hidden" id="sched-date"><div class="dpick" data-for="sched-date"></div></div>
       </div>
       <label>Time</label>
       <div class="slots" id="sched-slots"><span class="muted" style="font-size:.88rem;">Choose a date.</span></div>
       <div style="display:flex;gap:.6rem;">
-        <button class="btn btn--solid" id="sched-go" onclick="confirmSchedule()">Schedule</button>
+        <button class="btn btn--solid" id="sched-go" onclick="confirmSchedule()">Book it</button>
         <button class="btn" onclick="closeScheduler()">Cancel</button>
       </div>
       <div class="status" id="sched-status"></div>
     </div>
     <div class="panel">
-      <span class="eyebrow">Booking requests</span>
-      <h2 style="font-size:1.6rem;margin-bottom:.4rem;">Customer requests</h2>
-      <p class="muted" style="font-size:.85rem;margin-bottom:1rem;">New requests first. Pick a credit, date and time to schedule the customer in — this deducts a session and books it on their behalf. If a customer has no active credit, confirm their payment under <b>Orders</b> first. Use <b>Dismiss</b> to close a request without booking.</p>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.6rem;">
+        <div><span class="eyebrow">Bookings</span><h2 style="font-size:1.6rem;margin:.2rem 0 0;">Book for a member</h2></div>
+        <button class="btn btn--solid btn--sm" onclick="openSchedulerDirect()">+ New booking</button>
+      </div>
+      <p class="muted" style="font-size:.85rem;margin:.6rem 0 1rem;">You decide every booking. Use <b>+ New booking</b> to book any member directly (pick member → course → date → time), or schedule from a customer request below. Booking deducts one session. A member with no active credit needs their payment confirmed under <b>Orders</b> first.</p>
       <div id="requests-list"><p class="muted">Loading…</p></div>
     </div>
   </div>
@@ -334,7 +337,7 @@ let token = "";
 let calYear, calMonth;        // month: 0-11
 let calBookings = [];
 let services = [];
-let reqList = [], schedReq = null, schedSlot = null;
+let reqList = [], schedCtx = null, schedSlot = null, bookingMembers = [];
 
 // 登入記憶:時效內重新整理免重新驗證(測試 5 分鐘,正式可改 30)
 const REMEMBER_MIN = 30;
@@ -633,21 +636,60 @@ function renderRequests(){
     </div>`;
   }).join("");
 }
+// 從客戶需求排程
 function openScheduler(rid){
-  schedReq=reqList.find(r=>r.request_id===rid); if(!schedReq) return;
+  const r=reqList.find(x=>x.request_id===rid); if(!r) return;
+  schedCtx={ email:r.email, requestId:r.request_id, preselect:r.package_id||"" };
   schedSlot=null;
-  $("sched-sub").textContent=(schedReq.name||schedReq.email)+" — pick a credit, date & time";
-  const creds=schedReq.credits||[];
-  $("sched-credit").innerHTML=creds.length
+  $("sched-member-row").classList.add("hidden");
+  $("sched-sub").textContent=(r.name||r.email)+" — pick course, date & time";
+  fillSchedCredits(r.credits||[], schedCtx.preselect);
+  resetSchedDateTime(); showSchedPanel();
+}
+// 直接幫某會員預約(不需 request):選會員 → 課程 → 日期 → 時段
+async function openSchedulerDirect(){
+  schedCtx={ email:"", requestId:null, preselect:"" };
+  schedSlot=null;
+  $("sched-member-row").classList.remove("hidden");
+  $("sched-sub").textContent="Book a session for a member";
+  $("sched-credit").innerHTML='<option value="">(choose a member first)</option>';
+  resetSchedDateTime(); showSchedPanel();
+  $("sched-member").innerHTML='<option value="">Loading members…</option>';
+  await loadBookingMembers();
+  $("sched-member").innerHTML=bookingMembers.length
+    ? '<option value="">Select a member…</option>'+bookingMembers.map(m=>`<option value="${esc(m.email)}">${esc(m.name||m.email)} — ${m.credits.length} credit${m.credits.length===1?"":"s"}</option>`).join("")
+    : '<option value="">(no members with active credits — confirm a payment under Orders first)</option>';
+}
+function onSchedMember(){
+  const email=$("sched-member").value;
+  const m=bookingMembers.find(x=>x.email===email);
+  schedCtx.email=email;
+  fillSchedCredits(m?m.credits:[], "");
+}
+function fillSchedCredits(creds, preselect){
+  $("sched-credit").innerHTML=(creds&&creds.length)
     ? creds.map(c=>`<option value="${esc(c.package_id)}">${esc(c.package_name)} — ${c.remaining_sessions} left (exp. ${esc(c.expiry_date||"")})</option>`).join("")
     : '<option value="">(no active credit — confirm payment under Orders first)</option>';
-  if(schedReq.package_id){ const opt=Array.from($("sched-credit").options).find(o=>o.value===schedReq.package_id); if(opt) $("sched-credit").value=schedReq.package_id; }
-  dpSet("sched-date",""); schedSlot=null;
-  $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Choose a date.</span>';
-  setStatus("sched-status","","");
-  $("sched-panel").style.display=""; $("sched-panel").scrollIntoView({behavior:"smooth",block:"start"});
+  if(preselect){ const o=Array.from($("sched-credit").options).find(x=>x.value===preselect); if(o) $("sched-credit").value=preselect; }
 }
-function closeScheduler(){ schedReq=null; schedSlot=null; $("sched-panel").style.display="none"; }
+function resetSchedDateTime(){ dpSet("sched-date",""); schedSlot=null; $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Choose a date.</span>'; setStatus("sched-status","",""); }
+function showSchedPanel(){ $("sched-panel").style.display=""; $("sched-panel").scrollIntoView({behavior:"smooth",block:"start"}); }
+function closeScheduler(){ schedCtx=null; schedSlot=null; $("sched-panel").style.display="none"; }
+// 取所有「有 active 點數」的會員與其可用課程(由 adminListPackages 彙整)
+async function loadBookingMembers(){
+  try{
+    const d=await api({action:"adminListPackages",token}); const pkgs=d.packages||[];
+    const map={};
+    pkgs.forEach(p=>{
+      if(p.status!=="active" || !(Number(p.remaining_sessions)>0)) return;
+      const e=String(p.email||"").trim().toLowerCase(); if(!e) return;
+      const nm=p.name || ((p.first_name||p.last_name)?((p.first_name||"")+" "+(p.last_name||"")).trim():"") || p.email;
+      if(!map[e]) map[e]={ email:p.email, name:nm, credits:[] };
+      map[e].credits.push({ package_id:p.package_id, package_name:p.package_name, remaining_sessions:p.remaining_sessions, expiry_date:p.expiry_date });
+    });
+    bookingMembers=Object.keys(map).sort().map(k=>map[k]);
+  }catch(e){ bookingMembers=[]; }
+}
 async function loadSchedSlots(){
   const date=$("sched-date").value; schedSlot=null;
   if(!date) return;
@@ -659,17 +701,20 @@ async function loadSchedSlots(){
 }
 function pickSchedSlot(el,t){ schedSlot=t; document.querySelectorAll("#sched-slots .slot").forEach(s=>s.classList.remove("sel")); el.classList.add("sel"); }
 async function confirmSchedule(){
-  if(!schedReq) return;
-  const packageId=$("sched-credit").value, date=$("sched-date").value;
-  if(!packageId) return setStatus("sched-status","This customer has no active credit — confirm payment under Orders first.","err");
+  if(!schedCtx) return;
+  const email=schedCtx.email, packageId=$("sched-credit").value, date=$("sched-date").value;
+  if(!email) return setStatus("sched-status","Choose a member","err");
+  if(!packageId) return setStatus("sched-status","No active credit — confirm payment under Orders first.","err");
   if(!date||!schedSlot) return setStatus("sched-status","Choose a date and time","err");
-  const btn=$("sched-go"); btn.disabled=true; btn.textContent="Scheduling…";
+  const btn=$("sched-go"); btn.disabled=true; btn.textContent="Booking…";
   try{
-    const d=await api({action:"adminScheduleFromRequest",token,request_id:schedReq.request_id,email:schedReq.email,package_id:packageId,booking_date:date,booking_time:schedSlot});
-    if(d.success){ toast("Scheduled ✓"); closeScheduler(); loadRequests(); loadCalendar(); }
-    else setStatus("sched-status",d.error||"Could not schedule","err");
+    const payload={action:"adminScheduleFromRequest",token,email:email,package_id:packageId,booking_date:date,booking_time:schedSlot};
+    if(schedCtx.requestId) payload.request_id=schedCtx.requestId;
+    const d=await api(payload);
+    if(d.success){ toast("Booked ✓"); closeScheduler(); loadRequests(); loadCalendar(); }
+    else setStatus("sched-status",d.error||"Could not book","err");
   }catch(e){ setStatus("sched-status","Connection failed","err"); }
-  btn.disabled=false; btn.textContent="Schedule";
+  btn.disabled=false; btn.textContent="Book it";
 }
 async function dismissRequest(rid){
   if(!confirm("Dismiss this request without booking?")) return;

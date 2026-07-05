@@ -222,6 +222,10 @@
         <button class="seg__btn active" id="seg-mine" onclick="setWhatsOnMode('mine')">My courses</button>
         <button class="seg__btn" id="seg-all" onclick="setWhatsOnMode('all')">All open times</button>
       </div>
+      <div id="wo-course-wrap" style="margin-bottom:.4rem;">
+        <label>Which course?</label>
+        <select id="wo-course" onchange="woCourseChanged()"></select>
+      </div>
       <label>Jump to a date</label>
       <input type="hidden" id="wo-date"><div class="dpick" data-for="wo-date"></div>
       <div class="cal-head">
@@ -267,7 +271,7 @@ let email="", sessionToken="";
 let member={name:"",phone:""};
 let packages=[], bookings=[], products=[], singles=[], requests=[];
 let requestsLeftToday=null, confirmCb=null;
-let woYear=null, woMonth=0, woMode="mine", woAvail={}, woSelected="", woSlots=[], woSlot=null;
+let woYear=null, woMonth=0, woMode="mine", woAvail={}, woSelected="", woSlots=[], woSlot=null, woServiceId="";
 
 // 登入記憶:時效內重新整理免重新驗證(測試 5 分鐘,正式可改 30)
 const REMEMBER_MIN = 30;
@@ -532,8 +536,8 @@ function renderMyRequests(){
 }
 function pickWoSlot(el,t){ woSlot=t; document.querySelectorAll("#wo-slots .slot").forEach(s=>s.classList.remove("sel")); el.classList.add("sel"); }
 async function sendWhatsOnRequest(){
-  const credId=($("wo-credit")&&$("wo-credit").value)||"";
-  if(!credId) return setStatus("wo-status","Please choose a course","err");
+  const credId=($("wo-course")&&$("wo-course").value)||"";
+  if(!credId) return setStatus("wo-status","Please choose a course above","err");
   if(!woSlot) return setStatus("wo-status","Choose a time you'd like","err");
   const note=($("wo-note")&&$("wo-note").value.trim())||"";
   const btn=$("wo-send"); if(btn){ btn.disabled=true; btn.textContent="Sending…"; }
@@ -546,15 +550,38 @@ async function sendWhatsOnRequest(){
 
 // ── WHAT'S ON(可上課規劃檢視:月曆 + 日期選擇器,可切換我的課/全部開放) ──
 const WO_DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-function loadWhatsOn(){
+// 課程名 → service_id(用 getServices 的 singles 對照);找不到回空=通用
+function svcIdForCourse(name){ const s=(singles||[]).find(x=>String(x.name)===String(name)); return s?String(s.id):""; }
+function populateWoCourse(){
+  const sel=$("wo-course"); if(!sel) return;
+  const list=usableCredits(), cur=sel.value;
+  sel.innerHTML=list.map(p=>`<option value="${p.package_id}">${esc(p.package_name)} — ${p.remaining_sessions} left</option>`).join("");
+  if(cur && Array.from(sel.options).some(o=>o.value===cur)) sel.value=cur;
+  woUpdateServiceId();
+}
+function woUpdateServiceId(){
+  if(woMode!=="mine"){ woServiceId=""; return; }  // All open times = 不篩選
+  const pid=$("wo-course")?$("wo-course").value:"";
+  const cred=usableCredits().find(p=>p.package_id===pid);
+  woServiceId = cred ? svcIdForCourse(cred.package_name) : "";
+}
+function updateWoModeUI(){
+  $("seg-mine").classList.toggle("active",woMode==="mine");
+  $("seg-all").classList.toggle("active",woMode==="all");
+  const w=$("wo-course-wrap"); if(w) w.classList.toggle("hidden", woMode!=="mine" || !usableCredits().length);
+}
+function woCourseChanged(){ woUpdateServiceId(); woLoadMonth(); if(woSelected) woSelectDay(woSelected); }
+async function loadWhatsOn(){
   if(woYear==null){ const t=new Date(); woYear=t.getFullYear(); woMonth=t.getMonth(); }
+  if(!singles.length){ try{ const sd=await api({action:"getServices"}); singles=(sd&&sd.services)||[]; }catch(e){} }
+  populateWoCourse(); updateWoModeUI();
   woLoadMonth(); renderWoDayDetail();
 }
 async function woLoadMonth(){
   const last=new Date(woYear,woMonth+1,0).getDate();
   const from=woYear+"-"+dpPad(woMonth+1)+"-01", to=woYear+"-"+dpPad(woMonth+1)+"-"+dpPad(last);
   $("wo-cal").innerHTML='<p class="muted" style="grid-column:1/-1;">Loading…</p>';
-  try{ const d=await api({action:"getMonthAvailability",from,to}); woAvail=(d&&d.days)||{}; }
+  try{ const d=await api({action:"getMonthAvailability",from,to,service_id:woServiceId}); woAvail=(d&&d.days)||{}; }
   catch(e){ woAvail={}; }
   renderWoCal();
 }
@@ -582,11 +609,11 @@ async function woSelectDay(ds){
   woSelected=ds; dpSet("wo-date",ds); renderWoCal();
   $("wo-day-title").textContent=fmtDate(ds);
   $("wo-day").innerHTML='<p class="muted">Loading…</p>';
-  try{ const d=await api({action:"getTimeSlots",date:ds}); woSlots=(d&&d.slots)||[]; }
+  try{ const d=await api({action:"getTimeSlots",date:ds,service_id:woServiceId}); woSlots=(d&&d.slots)||[]; }
   catch(e){ woSlots=[]; }
   renderWoDayDetail();
 }
-function setWhatsOnMode(m){ woMode=m; $("seg-mine").classList.toggle("active",m==="mine"); $("seg-all").classList.toggle("active",m==="all"); renderWoDayDetail(); }
+function setWhatsOnMode(m){ woMode=m; woUpdateServiceId(); updateWoModeUI(); woLoadMonth(); if(woSelected) woSelectDay(woSelected); else renderWoDayDetail(); }
 function renderWoDayDetail(){
   const el=$("wo-day"); if(!el) return;
   if(!woSelected){ el.innerHTML='<p class="muted">Choose a day in the calendar above.</p>'; return; }
@@ -617,8 +644,6 @@ function renderWoDayDetail(){
   }
   html+='<label>Choose a time you\'d like</label>';
   html+='<div class="slots" id="wo-slots">'+woSlots.map(s=>`<span class="slot" onclick="pickWoSlot(this,'${s.time_slot}')">${s.time_slot}<span class="cap">${s.remaining} left</span></span>`).join("")+'</div>';
-  html+='<label>Which course / package?</label>';
-  html+='<select id="wo-credit">'+creds.map(p=>`<option value="${p.package_id}">${esc(p.package_name)} — ${p.remaining_sessions} left</option>`).join("")+'</select>';
   html+='<label>Note (optional)</label><textarea id="wo-note" placeholder="Anything else we should know?"></textarea>';
   html+='<button class="btn btn--solid btn--block" id="wo-send" onclick="sendWhatsOnRequest()">Send request</button>';
   html+='<div class="status" id="wo-status"></div>';

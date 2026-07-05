@@ -184,7 +184,7 @@
       <h2 id="sched-sub" style="font-size:1.4rem;margin-bottom:.9rem;"></h2>
       <div id="sched-member-row" class="hidden"><label>Member</label><select id="sched-member" onchange="onSchedMember()"></select></div>
       <div class="row2">
-        <div><label>Course / credit</label><select id="sched-credit"></select></div>
+        <div><label>Course / credit</label><select id="sched-credit" onchange="onSchedCredit()"></select></div>
         <div><label>Date</label><input type="hidden" id="sched-date"><div class="dpick" data-for="sched-date"></div></div>
       </div>
       <label>Time</label>
@@ -313,11 +313,13 @@
       </div>
       <label>Times — comma separated, 24-hour</label>
       <input type="text" id="ts-times" placeholder="10:00, 11:30, 14:00, 16:00" />
+      <label>Course (which course are these times for?)</label>
+      <select id="ts-course"><option value="">Any course (general)</option></select>
       <div class="row2">
         <div><label>Capacity each</label><input type="number" id="ts-cap" value="1" /></div>
         <div style="display:flex;align-items:flex-end;"><button class="btn btn--solid btn--block" id="gen-btn" onclick="generateSlots()">Add slots</button></div>
       </div>
-      <p class="muted" style="font-size:.8rem;">Creates a slot for each date × time (duplicates skipped). For private 1-to-1 sessions, capacity is usually 1.</p>
+      <p class="muted" style="font-size:.8rem;">Creates a slot for each date × time (duplicates skipped). Tag the times with a course so members only see availability for the courses they own — "Any course" times show for everyone. For private 1-to-1 sessions, capacity is usually 1.</p>
       <div id="ts-list" style="margin-top:1rem;"><p class="muted">Loading…</p></div>
       <div style="text-align:right;margin-top:.6rem;"><button class="btn btn--sm" onclick="dedupeSlots()">Remove duplicates</button></div>
     </div>
@@ -337,7 +339,7 @@ let token = "";
 let calYear, calMonth;        // month: 0-11
 let calBookings = [];
 let services = [];
-let reqList = [], schedCtx = null, schedSlot = null, bookingMembers = [];
+let reqList = [], schedCtx = null, schedSlot = null, bookingMembers = [], schedCreditSvc = {};
 
 // 登入記憶:時效內重新整理免重新驗證(測試 5 分鐘,正式可改 30)
 const REMEMBER_MIN = 30;
@@ -613,9 +615,15 @@ async function updateOrder(rowNum,status){
 
 // ── booking requests(客戶需求 → 代客排程) ──
 async function loadRequests(){
-  try{ const d=await api({action:"adminListBookingRequests",token}); reqList=d.requests||[]; renderRequests(); }
-  catch(e){ $("requests-list").innerHTML='<p class="muted">Could not load requests.</p>'; }
+  try{
+    if(!services.length){ const sd=await api({action:"adminListServices",token}); services=(sd&&sd.services)||[]; }
+    const d=await api({action:"adminListBookingRequests",token}); reqList=d.requests||[]; renderRequests();
+  }catch(e){ $("requests-list").innerHTML='<p class="muted">Could not load requests.</p>'; }
 }
+// 課程名 → service_id(用於依課程篩選時段);找不到回空=通用
+function svcIdForCourse(name){ const s=(services||[]).find(x=>String(x.name)===String(name)); return s?String(s.id):""; }
+function currentSchedServiceId(){ return schedCreditSvc[String($("sched-credit").value)]||""; }
+function onSchedCredit(){ if($("sched-date").value) loadSchedSlots(); }
 function reqBadge(s){ return s==="scheduled"?'<span class="badge ok">Scheduled</span>':s==="dismissed"?'<span class="badge pend">Dismissed</span>':'<span class="badge warn">New</span>'; }
 function renderRequests(){
   if(!reqList.length){ $("requests-list").innerHTML='<p class="muted">No requests yet.</p>'; return; }
@@ -670,6 +678,8 @@ function onSchedMember(){
   fillSchedCredits(m?m.credits:[], "");
 }
 function fillSchedCredits(creds, preselect){
+  schedCreditSvc={};
+  (creds||[]).forEach(c=>{ schedCreditSvc[String(c.package_id)]=svcIdForCourse(c.package_name); });
   $("sched-credit").innerHTML=(creds&&creds.length)
     ? creds.map(c=>`<option value="${esc(c.package_id)}">${esc(c.package_name)} — ${c.remaining_sessions} left (exp. ${esc(c.expiry_date||"")})</option>`).join("")
     : '<option value="">(no active credit — confirm payment under Orders first)</option>';
@@ -697,8 +707,8 @@ async function loadSchedSlots(preselectTime){
   const date=$("sched-date").value; schedSlot=null;
   if(!date) return;
   $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Loading…</span>';
-  try{ const d=await api({action:"getTimeSlots",date}); const slots=d.slots||[];
-    if(!slots.length){ $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">No open times on this date.</span>'; return; }
+  try{ const d=await api({action:"getTimeSlots",date,service_id:currentSchedServiceId()}); const slots=d.slots||[];
+    if(!slots.length){ $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">No open times for this course on this date.</span>'; return; }
     $("sched-slots").innerHTML=slots.map(s=>`<span class="slot${(preselectTime&&s.time_slot===preselectTime)?" sel":""}" onclick="pickSchedSlot(this,'${s.time_slot}')">${s.time_slot}<span class="cap">${s.remaining} left</span></span>`).join("");
     if(preselectTime && slots.some(s=>s.time_slot===preselectTime)) schedSlot=preselectTime;
   }catch(e){ $("sched-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Could not load times.</span>'; }
@@ -750,22 +760,37 @@ async function saveService(){
 async function deleteSvc(i){ const s=services[i]; if(!confirm("Delete this service?")) return; try{ const d=await api({action:"adminDeleteService",token,rowNum:s.rowNum}); if(d.success){ toast("Deleted"); loadServices(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
 
 // ── time slots ──
-async function loadTimeSlots(){ try{ const d=await api({action:"adminListTimeSlots",token}); renderTimeSlots(d.slots||[]); }catch(e){ $("ts-list").innerHTML='<p class="muted">Could not load.</p>'; } }
+function svcNameById(id){ if(!id) return ""; const s=(services||[]).find(x=>String(x.id)===String(id)); return s?s.name:""; }
+function populateSlotCourse(){
+  const sel=$("ts-course"); if(!sel) return; const cur=sel.value;
+  sel.innerHTML='<option value="">Any course (general)</option>'+(services||[]).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
+  if(cur) sel.value=cur;
+}
+async function loadTimeSlots(){
+  try{
+    const sd=await api({action:"adminListServices",token}); services=(sd&&sd.services)||[]; populateSlotCourse();
+    const d=await api({action:"adminListTimeSlots",token}); renderTimeSlots(d.slots||[]);
+  }catch(e){ $("ts-list").innerHTML='<p class="muted">Could not load.</p>'; }
+}
 function renderTimeSlots(slots){
   const today=todayStr(); const up=slots.filter(s=>s.date>=today);
   if(!up.length){ $("ts-list").innerHTML='<p class="muted">No upcoming slots. Add some above.</p>'; return; }
   const byDate={}; up.forEach(s=>{(byDate[s.date]=byDate[s.date]||[]).push(s);});
   $("ts-list").innerHTML=Object.keys(byDate).sort().map(date=>`<div style="margin-bottom:.7rem;">
     <div class="muted" style="font-size:.72rem;letter-spacing:.08em;margin-bottom:.3rem;">${date}</div>
-    <div style="display:flex;flex-wrap:wrap;gap:.4rem;">${byDate[date].map(s=>`<span style="display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;padding:.3rem .6rem;border:1px solid var(--line);border-radius:100px;${s.booked_count>=s.max_capacity?"opacity:.45;":""}">${esc(s.time_slot)}<span class="muted" style="font-size:.66rem;">${s.booked_count}/${s.max_capacity}</span><span style="cursor:pointer;color:var(--danger);font-weight:700;" onclick="deleteSlot(${s.rowNum})">×</span></span>`).join("")}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:.4rem;">${byDate[date].map(s=>{
+      const cn=s.service_id?svcNameById(s.service_id):"";
+      return `<span style="display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;padding:.3rem .6rem;border:1px solid var(--line);border-radius:100px;${s.booked_count>=s.max_capacity?"opacity:.45;":""}">${esc(s.time_slot)}${cn?` <span class="muted" style="font-size:.62rem;">${esc(cn)}</span>`:""}<span class="muted" style="font-size:.66rem;">${s.booked_count}/${s.max_capacity}</span><span style="cursor:pointer;color:var(--danger);font-weight:700;" onclick="deleteSlot(${s.rowNum})">×</span></span>`;
+    }).join("")}</div>
   </div>`).join("");
 }
 async function generateSlots(){
   const startDate=$("ts-start").value,endDate=$("ts-end").value;
   const times=$("ts-times").value.split(",").map(t=>t.trim()).filter(Boolean); const capacity=Number($("ts-cap").value)||0;
+  const service_id=($("ts-course")&&$("ts-course").value)||"";
   if(!startDate||!endDate) return toast("Choose a date range"); if(!times.length) return toast("Enter at least one time");
   const b=$("gen-btn"); b.disabled=true; b.textContent="Adding…";
-  try{ const d=await api({action:"adminGenerateTimeSlots",token,startDate,endDate,times,capacity});
+  try{ const d=await api({action:"adminGenerateTimeSlots",token,startDate,endDate,times,capacity,service_id});
     if(d.success){ toast(`Added ${d.created}`+(d.skipped?`, skipped ${d.skipped}`:"")); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); }
   b.disabled=false; b.textContent="Add slots";
 }

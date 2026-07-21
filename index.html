@@ -31,6 +31,9 @@
   .nav__links a.book{border:1px solid rgba(255,255,255,.6);padding:.5rem 1.1rem;}
   .nav--scrolled{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);box-shadow:0 1px 0 var(--line);}
   .nav--scrolled .nav__logo{color:var(--ink);} .nav--scrolled .nav__links a{color:var(--ink);} .nav--scrolled .nav__links a.book{border-color:var(--ink);}
+  .nav__logo{display:flex;align-items:center;} .nav__logo img{height:40px;display:block;width:auto;}
+  .nav__logo .logo-dk{display:none;}
+  .nav--scrolled .nav__logo .logo-lt{display:none;} .nav--scrolled .nav__logo .logo-dk{display:block;}
   .hero{position:relative;min-height:92vh;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;background:radial-gradient(120% 90% at 50% 0%,#2a2a2a 0%,#141414 55%,#0e0e0e 100%);overflow:hidden;}
   /* 想放形象照:打開下行、換成你的圖片網址
   .hero{background:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.55)),url('YOUR_PHOTO_URL') center/cover;} */
@@ -65,16 +68,17 @@
   .footer h4{font-family:var(--font-ui);font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:#9a948a;margin-bottom:1rem;}
   .footer a{color:#d9d4ca;} .footer a:hover{color:#fff;}
   .footer__bottom{margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid rgba(255,255,255,.16);font-size:.78rem;color:#8a847a;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.6rem;}
-  @media(max-width:820px){ .nav__links a:not(.book){display:none;} .actions,.steps,.footer__grid{grid-template-columns:1fr;gap:1.3rem;} }
+  @media(max-width:820px){ .nav__links a:not(.book):not(.login-lnk){display:none;} .actions,.steps,.footer__grid{grid-template-columns:1fr;gap:1.3rem;} }
 </style>
 </head>
 <body>
 
 <nav class="nav" id="nav">
-  <a href="./index.html" class="nav__logo">Studio Soom</a>
+  <a href="./index.html" class="nav__logo" aria-label="Studio Soom"><img class="logo-lt" src="./assets/soom-logo.png" alt="Studio Soom" /><img class="logo-dk" src="./assets/soom-logo-dark.png" alt="Studio Soom" /></a>
   <div class="nav__links">
     <a href="#products">Pricing</a>
     <a href="https://studiosoom.co.uk/">Main site</a>
+    <a href="./booking/index.html" class="login-lnk">Login</a>
     <a href="./booking/index.html#request" class="book">Request</a>
   </div>
 </nav>
@@ -90,6 +94,8 @@
     </div>
   </div>
 </header>
+
+<div id="announce" class="wrap"></div>
 
 <!-- 功能按鈕 -->
 <section class="section">
@@ -120,7 +126,7 @@
 <section class="section section--warm center">
   <div class="wrap">
     <span class="eyebrow">How it works</span>
-    <h2 style="font-size:clamp(1.9rem,4vw,2.8rem)">Buy, then request</h2>
+    <h2 style="font-size:clamp(1.9rem,4vw,2.8rem)">Booking process</h2>
     <div class="steps">
       <div class="step"><div class="step__n">01</div><h3>Buy a session or package</h3><p>Choose a single session or a package. We'll contact you to arrange payment.</p></div>
       <div class="step"><div class="step__n">02</div><h3>We confirm your payment</h3><p>Your order shows in your account as "Awaiting payment". Once we confirm your payment, your sessions become active.</p></div>
@@ -132,9 +138,13 @@
 <!-- 產品(單堂 + 套餐) -->
 <section class="section" id="products">
   <div class="wrap">
-    <div class="center"><span class="eyebrow">Sessions &amp; packages</span>
-    <h2 style="font-size:clamp(1.9rem,4vw,2.8rem)">Buy a session or a package</h2>
+    <div class="center"><span class="eyebrow">Pricing</span>
+    <h2 style="font-size:clamp(1.9rem,4vw,2.8rem)">Sessions &amp; packages</h2>
     <p class="muted" style="max-width:620px;margin:.8rem auto 0">Single sessions or save with a package. Your order is added to your account, and once we confirm your payment you can book a time.</p></div>
+    <div style="max-width:640px;margin:1.6rem auto 0;padding:1.1rem 1.3rem;background:var(--bg-warm);border:1px solid var(--line);border-radius:6px;">
+      <div class="eyebrow" style="margin-bottom:.4rem;display:block;">Studio Policy</div>
+      <p style="font-size:.95rem;color:var(--ink-soft);line-height:1.7;margin:0;">Reservations, cancellations, or schedule changes must be made at least 24 hours in advance. Same-day cancellations may result in the session being deducted from your package.</p>
+    </div>
     <div class="cards" id="products-list"><p class="loading center" style="grid-column:1/-1">Loading…</p></div>
   </div>
 </section>
@@ -143,7 +153,7 @@
   <div class="wrap">
     <div class="footer__grid">
       <div>
-        <div class="footer__logo">Studio Soom</div>
+        <img src="./assets/soom-logo.png" alt="Studio Soom" style="height:56px;width:auto;display:block;margin-bottom:.9rem;" />
         <p>Private Gyrotonic® &amp; Gyrokinesis® sessions in London. Movement guided by mindful breath.</p>
         <a href="./booking/index.html#buy" class="btn" style="margin-top:1.2rem;color:#fff;border-color:rgba(255,255,255,.5)">Buy a session</a>
       </div>
@@ -248,6 +258,19 @@ async function loadProducts(){
   }catch(e){ el.innerHTML='<p class="loading center" style="grid-column:1/-1">Pricing is being updated — please contact us.</p>'; }
 }
 loadProducts();
+// 公告(管理員輸入的休假 / 活動)→ 顧客頁顯示
+async function loadAnnouncements(){
+  try{
+    const d=await api({action:"getAnnouncements"}); const list=(d&&d.announcements)||[];
+    const el=document.getElementById("announce"); if(!el) return;
+    if(!list.length){ el.innerHTML=""; return; }
+    el.innerHTML='<div style="margin-top:1.6rem;display:flex;flex-direction:column;gap:.6rem;">'+list.map(function(a){
+      var c=a.type==="holiday"?["#f3e3e0","#9a4a3c"]:a.type==="event"?["#e8efe9","#2f6b46"]:["#f6efe0","#8a6d1f"];
+      return '<div style="background:'+c[0]+';color:'+c[1]+';border:1px solid '+c[1]+';border-radius:6px;padding:.75rem 1.1rem;font-size:.92rem;line-height:1.55;">'+(a.title?('<b>'+esc(a.title)+'</b> — '):'')+esc(a.message)+'</div>';
+    }).join('')+'</div>';
+  }catch(e){}
+}
+loadAnnouncements();
 </script>
 </body>
 </html>

@@ -19,7 +19,8 @@
   body{font-family:var(--font-ui);font-weight:300;color:var(--ink);background:var(--bg-warm);line-height:1.7;font-size:16px;}
   a{color:inherit;} h1,h2,h3{font-family:var(--font-display);font-weight:500;line-height:1.15;}
   .topbar{display:flex;align-items:center;justify-content:space-between;padding:1.1rem clamp(1.2rem,4vw,2.4rem);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;}
-  .topbar a.logo{font-family:var(--font-display);font-size:1.4rem;font-weight:600;letter-spacing:.04em;}
+  .topbar a.logo{font-family:var(--font-display);font-size:1.4rem;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;}
+  .topbar a.logo img{height:34px;display:block;width:auto;}
   .topbar .right{display:flex;gap:1.2rem;align-items:center;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;}
   .topbar .right a,.topbar .right button{color:var(--muted);background:none;border:none;font-family:inherit;font-size:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;}
   .topbar .right a:hover,.topbar .right button:hover{color:var(--ink);}
@@ -127,48 +128,74 @@
 <body>
 
 <div class="topbar">
-  <a href="../index.html" class="logo">Studio Soom</a>
+  <a href="../index.html" class="logo" aria-label="Studio Soom"><img src="../assets/soom-logo-dark.png" alt="Studio Soom" /></a>
   <div class="right">
     <a href="../index.html">← Home</a>
     <button id="signout" class="hidden" onclick="signOut()">Sign out</button>
   </div>
 </div>
 
+<div id="announce" style="max-width:920px;margin:0 auto;padding:0 clamp(1.2rem,4vw,2rem);"></div>
+
 <!-- ░░ LOGIN ░░ -->
-<div class="wrap login" id="login">
-  <div class="panel">
-    <span class="eyebrow">Members</span>
-    <h2>Sign in</h2>
-    <p class="muted" style="margin-bottom:1.3rem;font-size:.92rem;">Enter your email and we'll send a 6-digit code. Once signed in you can buy sessions or packages, book a time, and see your remaining sessions.</p>
-    <label>Email</label>
-    <div class="verify-row">
-      <input type="email" id="login-email" placeholder="you@email.com" autocomplete="email" />
-      <button class="btn btn--solid" id="send-btn" onclick="sendCode()">Send code</button>
+<div id="login">
+  <div class="wrap login">
+    <div class="panel">
+      <span class="eyebrow">Members</span>
+      <h2>Sign in</h2>
+      <p class="muted" style="margin-bottom:1.3rem;font-size:.92rem;">Enter your email and we'll send a 6-digit code. Once signed in you can buy sessions or packages, request a time, and see your remaining sessions.</p>
+      <label>Email</label>
+      <div class="verify-row">
+        <input type="email" id="login-email" placeholder="you@email.com" autocomplete="email" />
+        <button class="btn btn--solid" id="send-btn" onclick="sendCode()">Send code</button>
+      </div>
+      <div class="hidden" id="profile-row" style="margin-top:.8rem;display:flex;flex-direction:column;gap:.6rem;">
+        <input type="text" id="login-first" placeholder="First name" autocomplete="given-name" />
+        <input type="text" id="login-last" placeholder="Last name" autocomplete="family-name" />
+        <input type="tel" id="login-phone" placeholder="Phone (optional)" autocomplete="tel" />
+      </div>
+      <div class="verify-row hidden" id="code-row" style="margin-top:.8rem;">
+        <input type="text" id="login-code" placeholder="6-digit code" maxlength="6" inputmode="numeric" />
+        <button class="btn btn--solid" id="verify-btn" onclick="verifyCode()">Verify</button>
+      </div>
+      <div class="status" id="login-status"></div>
     </div>
-    <div class="hidden" id="profile-row" style="margin-top:.8rem;display:flex;flex-direction:column;gap:.6rem;">
-      <input type="text" id="login-first" placeholder="First name" autocomplete="given-name" />
-      <input type="text" id="login-last" placeholder="Last name" autocomplete="family-name" />
-      <input type="tel" id="login-phone" placeholder="Phone (optional)" autocomplete="tel" />
+  </div>
+  <!-- 登入前公開時間表(Booking availability)-->
+  <div class="wrap" style="padding-top:0;">
+    <div class="panel">
+      <span class="eyebrow">Booking availability</span>
+      <h2>When can you come?</h2>
+      <p class="muted" style="font-size:.92rem;margin-bottom:1rem;">See the days and times that are currently open. Sign in above to request a time that suits you.</p>
+      <div class="cal-head">
+        <div class="cal-nav">
+          <button class="btn btn--sm" onclick="pubMove(-1)">‹ Prev</button>
+          <button class="btn btn--sm" onclick="pubToday()">Today</button>
+          <button class="btn btn--sm" onclick="pubMove(1)">Next ›</button>
+        </div>
+        <span id="pub-cal-title" class="muted" style="font-size:.95rem;"></span>
+      </div>
+      <div class="cal" id="pub-cal"></div>
+      <div class="legend" style="margin-top:.7rem;"><span><i class="dot ok"></i>Open times available</span></div>
+      <div style="margin-top:1.2rem;border-top:1px solid var(--line);padding-top:1rem;">
+        <h3 id="pub-day-title" style="font-size:1.3rem;">Pick a day</h3>
+        <div id="pub-day"><p class="muted">Choose a day above to see open times.</p></div>
+      </div>
     </div>
-    <div class="verify-row hidden" id="code-row" style="margin-top:.8rem;">
-      <input type="text" id="login-code" placeholder="6-digit code" maxlength="6" inputmode="numeric" />
-      <button class="btn btn--solid" id="verify-btn" onclick="verifyCode()">Verify</button>
-    </div>
-    <div class="status" id="login-status"></div>
   </div>
 </div>
 
 <!-- ░░ APP ░░ -->
 <div class="wrap hidden" id="app">
   <div class="tabs">
-    <div class="tab active" data-tab="account" onclick="switchTab('account')">My account</div>
+    <div class="tab active" data-tab="whatson" onclick="switchTab('whatson')">Booking availability</div>
+    <div class="tab" data-tab="account" onclick="switchTab('account')">My account</div>
     <div class="tab" data-tab="buy" onclick="switchTab('buy')">Buy</div>
     <div class="tab" data-tab="request" onclick="switchTab('request')">Request a session</div>
-    <div class="tab" data-tab="whatson" onclick="switchTab('whatson')">What's on</div>
   </div>
 
   <!-- ACCOUNT -->
-  <div id="tab-account">
+  <div id="tab-account" class="hidden">
     <div class="panel">
       <span class="eyebrow">Your sessions &amp; packages</span>
       <h2 id="hello">Welcome back</h2>
@@ -212,11 +239,11 @@
     </div>
   </div>
 
-  <!-- WHAT'S ON -->
-  <div id="tab-whatson" class="hidden">
+  <!-- BOOKING AVAILABILITY(原 What's on)-->
+  <div id="tab-whatson">
     <div class="panel">
-      <span class="eyebrow">What's on</span>
-      <h2>When can I come?</h2>
+      <span class="eyebrow">Booking availability</span>
+      <h2>When can you come?</h2>
       <p class="muted" style="font-size:.9rem;margin-bottom:1rem;">Pick a day to see what's available, then send a request for the time that suits you. Switch between your own courses and all open times.</p>
       <div class="seg">
         <button class="seg__btn active" id="seg-mine" onclick="setWhatsOnMode('mine')">My courses</button>
@@ -256,6 +283,26 @@
       <button class="btn btn--solid" id="confirm-ok" onclick="doConfirm()">Confirm</button>
       <button class="btn" onclick="closeModal('confirm-modal')">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- RESCHEDULE REQUEST MODAL(顧客提出改期,管理員確認)-->
+<div class="modal hidden" id="resched-modal">
+  <div class="modal__box">
+    <h3>Request a date change</h3>
+    <p class="muted" id="rs-cur" style="font-size:.9rem;margin:.4rem 0 1rem;"></p>
+    <label>New date you'd like</label>
+    <input type="hidden" id="rs-date"><div class="dpick" data-for="rs-date"></div>
+    <label>Choose a time</label>
+    <div class="slots" id="rs-slots"><span class="muted" style="font-size:.88rem;">Choose a date first.</span></div>
+    <label>Reason / note (optional)</label>
+    <textarea id="rs-note" placeholder="Anything we should know?"></textarea>
+    <div style="display:flex;gap:.7rem;margin-top:.2rem;">
+      <button class="btn btn--solid" id="rs-send" onclick="submitReschedule()">Send change request</button>
+      <button class="btn" onclick="closeModal('resched-modal')">Cancel</button>
+    </div>
+    <div class="status" id="rs-status"></div>
+    <p class="muted" style="font-size:.8rem;margin-top:.6rem;">This is a request — the studio confirms the final time. Changes should be made at least 24 hours in advance.</p>
   </div>
 </div>
 
@@ -342,11 +389,13 @@ function backToLogin(msg){
   $("login").classList.remove("hidden"); $("code-row").classList.add("hidden"); $("profile-row").classList.add("hidden"); $("login-code").value="";
   setStatus("login-status", msg||"Please sign in.", "err"); window.scrollTo({top:0,behavior:"smooth"});
 }
-function enterApp(){
+async function enterApp(){
   $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("signout").classList.remove("hidden");
-  dpMin("wo-date",todayStr());
-  loadAccount(); loadBuy();
-  var h=(location.hash||"").replace("#",""); if(h==="buy"||h==="request"||h==="whatson") switchTab(h);  // 從首頁 #buy / #request / #whatson 連入
+  dpMin("wo-date",todayStr()); dpMin("rs-date",todayStr());
+  await loadAccount(); loadBuy();
+  var h=(location.hash||"").replace("#",""); // 從首頁 #buy / #request / #whatson / #account 連入;預設 Booking availability
+  if(h==="buy"||h==="request"||h==="whatson"||h==="account") switchTab(h);
+  else switchTab("whatson");
 }
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
@@ -388,9 +437,10 @@ function renderBookings(){
   el.innerHTML=bookings.map(b=>{
     const st=b.booking_status;
     const badge=st==="cancelled"?'<span class="badge danger">Cancelled</span>':b.change_type==="rescheduled"?'<span class="badge warn">Rescheduled</span>':(st==="confirmed"||st==="paid"||st==="deposit_paid")?'<span class="badge ok">Confirmed</span>':'<span class="badge muted">Pending</span>';
-    return `<div class="bk"><div><div class="svc">${esc(b.service_name)}</div><div class="when">${fmtDate(b.booking_date)} · ${b.booking_time}</div><div style="margin-top:.4rem;">${badge}</div></div></div>`;
+    const change=st==="cancelled"?"":`<button class="btn btn--sm" onclick="openResched('${b.booking_id}')">Request a change</button>`;
+    return `<div class="bk"><div><div class="svc">${esc(b.service_name)}</div><div class="when">${fmtDate(b.booking_date)} · ${b.booking_time}</div><div style="margin-top:.4rem;">${badge}</div></div><div class="actions">${change}</div></div>`;
   }).join("")+
-  `<p class="muted" style="font-size:.82rem;margin-top:1rem;">Need to change or cancel a session? Please contact us: <a href="tel:${CONTACT.phone.replace(/\s/g,'')}">${CONTACT.phone}</a> · <a href="${CONTACT.whatsapp}">WhatsApp</a> · <a href="mailto:${CONTACT.email}">${CONTACT.email}</a></p>`;
+  `<p class="muted" style="font-size:.82rem;margin-top:1rem;">You can request a date change above. Changes must be at least 24 hours in advance — within 24 hours, or to cancel, please contact us: <a href="tel:${CONTACT.phone.replace(/\s/g,'')}">${CONTACT.phone}</a> · <a href="${CONTACT.whatsapp}">WhatsApp</a> · <a href="mailto:${CONTACT.email}">${CONTACT.email}</a></p>`;
 }
 
 // ── BUY(單堂 + 套組) ──
@@ -485,7 +535,7 @@ function buySingle(id){
   const s=singles.filter(x=>String(x.id)===String(id))[0]; if(!s) return;
   askConfirm("Order 1 × "+s.name+" for "+CURRENCY+s.price+"? We'll contact you to arrange payment, and your session becomes bookable once we confirm it.", async()=>{
     try{ const d=await api({action:"purchaseSingle",email,sessionToken,course_id:id});
-      if(d.success){ toast("Order placed ✓ — awaiting payment"); await loadAccount(); switchTab("request"); } else toast(d.error||"Could not complete purchase");
+      if(d.success){ toast("Order placed ✓ — check your email for payment details"); await loadAccount(); switchTab("request"); } else toast(d.error||"Could not complete purchase");
     }catch(e){ toast("Connection failed"); }
   });
 }
@@ -493,7 +543,7 @@ function buyPackage(id){
   const p=products.filter(x=>String(x.id)===String(id))[0]; if(!p) return;
   askConfirm("Order "+p.name+" for "+CURRENCY+p.price+"? We'll contact you to arrange payment, and your sessions become bookable once we confirm it.", async()=>{
     try{ const d=await api({action:"purchasePackage",email,sessionToken,product_id:id});
-      if(d.success){ toast("Order placed ✓ — awaiting payment"); await loadAccount(); switchTab("request"); } else toast(d.error||"Could not complete purchase");
+      if(d.success){ toast("Order placed ✓ — check your email for payment details"); await loadAccount(); switchTab("request"); } else toast(d.error||"Could not complete purchase");
     }catch(e){ toast("Connection failed"); }
   });
 }
@@ -528,7 +578,8 @@ function renderMyRequests(){
     const st=r.status;
     const badge=st==="scheduled"?'<span class="badge ok">Scheduled</span>':st==="dismissed"?'<span class="badge muted">Closed</span>':'<span class="badge warn">Pending</span>';
     const lines=[];
-    if(r.requested_date) lines.push('<div class="when">Requested: '+esc(fmtDate(r.requested_date))+(r.requested_time?(' · '+esc(r.requested_time)):'')+'</div>');
+    if(r.type==="reschedule") lines.push('<div style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--warn);margin-bottom:.15rem;">Date change request</div>');
+    if(r.requested_date) lines.push('<div class="when">'+(r.type==="reschedule"?"New date: ":"Requested: ")+esc(fmtDate(r.requested_date))+(r.requested_time?(' · '+esc(r.requested_time)):'')+'</div>');
     if(r.note) lines.push('<div class="muted" style="white-space:pre-wrap;font-size:.9rem;">'+esc(r.note)+'</div>');
     lines.push('<div class="muted" style="font-size:.78rem;margin-top:.2rem;">'+esc(r.created)+'</div>');
     return `<div class="bk"><div style="flex:1;">${lines.join("")}</div><div class="actions">${badge}</div></div>`;
@@ -698,8 +749,93 @@ function dpMin(id,v){ var d=_dp[id]; var el=d?d.input:document.getElementById(id
 document.addEventListener("click",dpCloseAll);
 window.addEventListener("scroll",dpCloseAll,true);
 dpInit("wo-date",onWoDate);
+dpInit("rs-date",rsLoadSlots); dpMin("rs-date",todayStr());
+
+// ── 公告 banner(顧客頁 + 登入前皆顯示)──
+async function loadAnnouncements(){
+  try{
+    const d=await api({action:"getAnnouncements"}); const list=(d&&d.announcements)||[];
+    const el=$("announce"); if(!el) return;
+    if(!list.length){ el.innerHTML=""; return; }
+    el.innerHTML='<div style="display:flex;flex-direction:column;gap:.5rem;margin:.9rem 0 0;">'+list.map(function(a){
+      var c=a.type==="holiday"?["var(--danger-bg)","var(--danger)"]:a.type==="event"?["var(--ok-bg)","var(--ok)"]:["var(--warn-bg)","var(--warn)"];
+      return '<div style="background:'+c[0]+';color:'+c[1]+';border:1px solid '+c[1]+';border-radius:4px;padding:.65rem 1rem;font-size:.88rem;line-height:1.5;">'+(a.title?('<b>'+esc(a.title)+'</b> — '):'')+esc(a.message)+'</div>';
+    }).join('')+'</div>';
+  }catch(e){}
+}
+
+// ── 登入前公開時間表(Booking availability,唯讀;沿用公開 API)──
+var pubY=null, pubM=0, pubAvail={}, pubSel="";
+async function loadPublicAvailability(){
+  if(pubY==null){ var t=new Date(); pubY=t.getFullYear(); pubM=t.getMonth(); }
+  await pubLoadMonth();
+}
+async function pubLoadMonth(){
+  var last=new Date(pubY,pubM+1,0).getDate();
+  var from=pubY+"-"+dpPad(pubM+1)+"-01", to=pubY+"-"+dpPad(pubM+1)+"-"+dpPad(last);
+  var cal=$("pub-cal"); if(cal) cal.innerHTML='<p class="muted" style="grid-column:1/-1;">Loading…</p>';
+  try{ var d=await api({action:"getMonthAvailability",from:from,to:to}); pubAvail=(d&&d.days)||{}; }catch(e){ pubAvail={}; }
+  pubRenderCal();
+}
+function pubRenderCal(){
+  var tt=$("pub-cal-title"); if(tt) tt.textContent=DP_MONTHS[pubM]+" "+pubY;
+  var startOffset=(new Date(pubY,pubM,1).getDay()+6)%7, daysIn=new Date(pubY,pubM+1,0).getDate(), today=todayStr();
+  var html=WO_DOW.map(function(d){return '<div class="dow">'+d+'</div>';}).join("");
+  for(var i=0;i<42;i++){
+    var dayNum=i-startOffset+1;
+    if(dayNum<1||dayNum>daysIn){ html+='<div class="cell empty"></div>'; continue; }
+    var ds=pubY+"-"+dpPad(pubM+1)+"-"+dpPad(dayNum), past=ds<today, open=pubAvail[ds]||0;
+    var cls=["cell"]; if(ds===today)cls.push("today"); if(ds===pubSel)cls.push("sel"); if(past)cls.push("none");
+    var dot=(!past&&open>0)?'<span class="cdot"></span>':'';
+    var click=past?'':' onclick="pubSelectDay(\''+ds+'\')"';
+    html+='<div class="'+cls.join(" ")+'"'+click+'><span class="dnum">'+dayNum+'</span>'+dot+'</div>';
+  }
+  var c=$("pub-cal"); if(c) c.innerHTML=html;
+}
+function pubMove(delta){ pubM+=delta; if(pubM<0){pubM=11;pubY--;} if(pubM>11){pubM=0;pubY++;} pubLoadMonth(); }
+function pubToday(){ var t=new Date(); pubY=t.getFullYear(); pubM=t.getMonth(); pubLoadMonth(); }
+async function pubSelectDay(ds){
+  pubSel=ds; pubRenderCal();
+  var tt=$("pub-day-title"); if(tt) tt.textContent=fmtDate(ds);
+  var el=$("pub-day"); if(el) el.innerHTML='<p class="muted">Loading…</p>';
+  var slots=[]; try{ var d=await api({action:"getTimeSlots",date:ds}); slots=(d&&d.slots)||[]; }catch(e){}
+  if(!el) return;
+  if(!slots.length){ el.innerHTML='<p class="muted">No open times on this day. Try another day.</p>'; return; }
+  el.innerHTML='<div class="muted" style="font-size:.8rem;margin-bottom:.35rem;">Open times on this day:</div><div style="display:flex;flex-wrap:wrap;gap:.4rem;">'+slots.map(function(s){return '<span class="badge muted">'+s.time_slot+' · '+s.remaining+' left</span>';}).join("")+'</div><p class="muted" style="font-size:.85rem;margin-top:1rem;">Sign in above to request one of these times — the studio confirms the final time.</p>';
+}
+
+// ── 改期需求(顧客在已排定課程提出新日期 → 管理員確認套用)──
+var rsBookingId="", rsSlot=null;
+function openResched(bid){
+  var b=bookings.find(function(x){return x.booking_id===bid;}); if(!b) return;
+  rsBookingId=bid; rsSlot=null;
+  $("rs-cur").innerHTML="Current booking: <b>"+esc(b.service_name)+"</b> · "+esc(fmtDate(b.booking_date))+" · "+esc(b.booking_time);
+  dpSet("rs-date",""); $("rs-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Choose a date first.</span>';
+  $("rs-note").value=""; setStatus("rs-status","",""); openModal("resched-modal");
+}
+async function rsLoadSlots(){
+  var date=$("rs-date").value; rsSlot=null; if(!date) return;
+  $("rs-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Loading…</span>';
+  try{ var d=await api({action:"getTimeSlots",date:date}); var slots=(d&&d.slots)||[];
+    $("rs-slots").innerHTML=slots.length?slots.map(function(s){return '<span class="slot" onclick="pickRsSlot(this,\''+s.time_slot+'\')">'+s.time_slot+'<span class="cap">'+s.remaining+' left</span></span>';}).join(""):'<span class="muted" style="font-size:.88rem;">No open times that day.</span>';
+  }catch(e){ $("rs-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Could not load times.</span>'; }
+}
+function pickRsSlot(el,t){ rsSlot=t; document.querySelectorAll("#rs-slots .slot").forEach(function(s){s.classList.remove("sel");}); el.classList.add("sel"); }
+async function submitReschedule(){
+  var date=$("rs-date").value, note=$("rs-note").value.trim();
+  if(!date && !note) return setStatus("rs-status","Choose a new date, or add a note","err");
+  var btn=$("rs-send"); btn.disabled=true; btn.textContent="Sending…";
+  try{
+    var d=await api({action:"submitBookingRequest",email:email,sessionToken:sessionToken,type:"reschedule",booking_id_ref:rsBookingId,requested_date:date,requested_time:rsSlot||"",note:note});
+    if(d.success){ toast("Change request sent ✓"); closeModal("resched-modal"); await loadAccount(); }
+    else setStatus("rs-status",d.error||"Could not send request","err");
+  }catch(e){ setStatus("rs-status","Connection failed","err"); }
+  btn.disabled=false; btn.textContent="Send change request";
+}
 
 restoreSession();  // 載入時若有未逾時的登入記憶,自動還原免重新驗證
+loadAnnouncements();
+if(!$("login").classList.contains("hidden")) loadPublicAvailability();  // 未自動登入時,顯示公開時間表
 </script>
 </body>
 </html>

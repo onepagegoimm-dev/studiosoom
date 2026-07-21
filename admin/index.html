@@ -109,12 +109,15 @@
   .dp-foot{display:flex;justify-content:space-between;margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--line);}
   .dp-clear,.dp-today{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.8rem;font-family:inherit;}
   .dp-clear:hover,.dp-today:hover{color:var(--ink);text-decoration:underline;}
+  .modal{position:fixed;inset:0;background:rgba(20,18,16,.55);display:flex;align-items:center;justify-content:center;z-index:200;padding:1.2rem;}
+  .modal__box{background:#fff;max-width:520px;width:100%;padding:1.8rem;border-radius:4px;max-height:90vh;overflow:auto;}
+  .modal__box h3{font-size:1.5rem;margin-bottom:.3rem;}
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="logo">Studio Soom<small>Admin</small></div>
+  <div class="logo" style="display:flex;align-items:center;gap:.5rem;"><img src="../assets/soom-logo-dark.png" alt="Studio Soom" style="height:30px;width:auto;display:block;" /><small>Admin</small></div>
   <div class="right">
     <a href="../index.html">Site</a>
     <button id="signout" class="hidden" onclick="signOut()">Sign out</button>
@@ -150,6 +153,7 @@
     <div class="tab" data-tab="slots" onclick="switchTab('slots')">Time slots</div>
     <div class="tab" data-tab="packages" onclick="switchTab('packages')">User status</div>
     <div class="tab" data-tab="orders" onclick="switchTab('orders')">Orders</div>
+    <div class="tab" data-tab="announce" onclick="switchTab('announce')">Announcements</div>
   </div>
 
   <!-- SCHEDULE / CALENDAR -->
@@ -218,6 +222,34 @@
       </div>
     </div>
     <div id="user-list"><p class="muted">Loading…</p></div>
+  </div>
+
+  <!-- ANNOUNCEMENTS(公告:顧客頁 + 登入前顯示) -->
+  <div id="tab-announce" class="hidden">
+    <div class="panel">
+      <span class="eyebrow">Add / edit announcement</span>
+      <h2 style="font-size:1.6rem;margin-bottom:1rem;" id="an-form-title">New announcement</h2>
+      <input type="hidden" id="an-row" />
+      <label>Title (optional)</label><input type="text" id="an-title" placeholder="Holiday closure" />
+      <label>Message <span class="req">*</span></label><textarea id="an-message" placeholder="We're closed 12–15 August — back on the 16th."></textarea>
+      <div class="row3">
+        <div><label>Type</label><select id="an-type"><option value="info">Info</option><option value="holiday">Holiday / closure</option><option value="event">Event</option></select></div>
+        <div><label>Show from (optional)</label><input type="hidden" id="an-starts" /><div class="dpick" data-for="an-starts"></div></div>
+        <div><label>Show until (optional)</label><input type="hidden" id="an-ends" /><div class="dpick" data-for="an-ends"></div></div>
+      </div>
+      <label style="text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:.5rem;font-size:.92rem;color:var(--ink);"><input type="checkbox" id="an-active" checked style="width:auto;margin:0;" /> Active — show to customers now</label>
+      <div style="display:flex;gap:.6rem;margin-top:.8rem;">
+        <button class="btn btn--solid" id="an-save" onclick="saveAnnouncement()">Save</button>
+        <button class="btn" onclick="resetAnnForm()">Clear</button>
+      </div>
+      <div class="status" id="an-status"></div>
+    </div>
+    <div class="panel">
+      <span class="eyebrow">Announcements</span>
+      <h2 style="font-size:1.6rem;margin-bottom:.6rem;">Current &amp; past</h2>
+      <p class="muted" style="font-size:.85rem;margin-bottom:1rem;">Active announcements show on the customer pages (including before sign-in). Holidays show in red, events in green.</p>
+      <div id="ann-list"><p class="muted">Loading…</p></div>
+    </div>
   </div>
 
   <!-- PACKAGE MENU(方案菜單,首頁展示用) -->
@@ -326,6 +358,38 @@
   </div>
 </div>
 
+<!-- RESCHEDULE MODAL(後台改期:只列該課程其他開放時段)-->
+<div class="modal hidden" id="rsx-modal">
+  <div class="modal__box">
+    <h3>Reschedule booking</h3>
+    <p class="muted" id="rsx-cur" style="font-size:.9rem;margin:.4rem 0 1rem;line-height:1.6;"></p>
+    <label>New date</label>
+    <input type="hidden" id="rsx-date" /><div class="dpick" data-for="rsx-date"></div>
+    <label>Available times for this course</label>
+    <div class="slots" id="rsx-slots"><span class="muted" style="font-size:.88rem;">Choose a date.</span></div>
+    <label>Reason / note (optional)</label>
+    <textarea id="rsx-reason" placeholder="Why is it being moved? (shown to the customer)"></textarea>
+    <div style="display:flex;gap:.6rem;margin-top:.2rem;">
+      <button class="btn btn--solid" id="rsx-apply" onclick="applyReschedule()">Apply change</button>
+      <button class="btn" onclick="closeRsx()">Cancel</button>
+    </div>
+    <div class="status" id="rsx-status"></div>
+    <p class="muted" style="font-size:.78rem;margin-top:.6rem;">Only times that are open for this course are shown. The customer is emailed automatically. No session is deducted.</p>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL(取代瀏覽器原生 confirm;按鈕固定英文,不受瀏覽器語系影響)-->
+<div class="modal hidden" id="cf-modal">
+  <div class="modal__box" style="max-width:420px;">
+    <h3>Please confirm</h3>
+    <p id="cf-msg" style="margin:.6rem 0 1.1rem;color:var(--ink-soft);font-size:.95rem;line-height:1.55;"></p>
+    <div style="display:flex;gap:.7rem;">
+      <button class="btn btn--solid" onclick="cfAnswer(true)">Confirm</button>
+      <button class="btn" onclick="cfAnswer(false)">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -348,7 +412,7 @@ function clearSession(){ try{ localStorage.removeItem('soom_admin'); }catch(e){}
 function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_admin')||'null'); if(s&&s.token&&s.exp>Date.now()){ token=s.token; enterMain(); } else { clearSession(); } }catch(e){} }
 
 let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複點擊
-const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus","adminScheduleFromRequest","adminUpdateRequestStatus"];
+const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus","adminScheduleFromRequest","adminUpdateRequestStatus","adminRescheduleBooking","adminSaveAnnouncement","adminDeleteAnnouncement"];
 async function api(p){
   const isMut=MUTATIONS.indexOf(p.action)!==-1;
   if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }
@@ -363,6 +427,8 @@ function pad(n){ return String(n).padStart(2,"0"); }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function fmtLong(s){ try{ return new Date(s+"T00:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); }catch(e){ return s; } }
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+// 明確英式短日期(D Mon YYYY),由 ISO YYYY-MM-DD 拆解,避免任何 MM/DD 誤判
+function fmtShort(s){ if(!s) return ""; var p=String(s).split("-"); if(p.length!==3) return s; var d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); if(isNaN(d.getTime())) return s; return d.getDate()+" "+MONTHS[d.getMonth()].slice(0,3)+" "+d.getFullYear(); }
 const DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
 // ── login ──
@@ -394,8 +460,9 @@ function enterMain(){
 }
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
-  ["schedule","requests","packages","menu","orders","services","slots"].forEach(n=>$("tab-"+n).classList.toggle("hidden",n!==name));
+  ["schedule","requests","packages","menu","orders","services","slots","announce"].forEach(n=>$("tab-"+n).classList.toggle("hidden",n!==name));
   if(name==="requests") loadRequests();
+  if(name==="announce") loadAnnouncements();
   if(name==="packages") loadPackages();
   if(name==="menu") loadPackageProducts();
   if(name==="orders") loadOrders();
@@ -443,7 +510,7 @@ function showDay(ds){
     const cls=statusClass(b);
     const badge=`<span class="badge ${cls}">${(b.change_type==="rescheduled"&&b.booking_status!=="cancelled")?"Rescheduled":(b.booking_status||"")}</span>`;
     let extra="";
-    if(b.change_type==="rescheduled"&&b.original_date) extra+=`<div class="muted" style="font-size:.8rem;margin-top:.2rem;">Moved from ${b.original_date} ${b.original_time||""}</div>`;
+    if(b.change_type==="rescheduled"&&b.original_date) extra+=`<div class="muted" style="font-size:.8rem;margin-top:.2rem;">Moved from ${esc(fmtShort(b.original_date))} ${esc(b.original_time||"")}</div>`;
     if(b.change_reason) extra+=`<div class="reason"><strong>Reason:</strong> ${esc(b.change_reason)}</div>`;
     if(b.note){ const nid="note-"+b.booking_id; extra+=`<button type="button" class="note-toggle" onclick="toggleNote('${nid}',this)">▸ Customer note</button><div class="note-body hidden" id="${nid}">${esc(b.note)}</div>`; }
     return `<div class="day-row">
@@ -452,6 +519,7 @@ function showDay(ds){
         <div class="det">${esc(b.name||"")} · ${esc(b.phone||"")}${b.email?(" · "+esc(b.email)):""}</div></div>
         <div>${badge}</div>
       </div>${extra}
+      ${(b.booking_status||"").toLowerCase()!=="cancelled"?`<div style="margin-top:.5rem;"><button class="btn btn--sm" onclick="openRescheduleBooking('${b.booking_id}')">Reschedule</button></div>`:""}
     </div>`;
   }).join("");
   document.getElementById("day-panel").scrollIntoView({behavior:"smooth",block:"nearest"});
@@ -586,7 +654,7 @@ async function savePackageProduct(){
     if(d.success){ toast("Saved"); resetPmForm(); loadPackageProducts(); } else setStatus("pm-status",d.error||"Save failed","err"); }catch(e){ setStatus("pm-status","Connection failed","err"); }
   b.disabled=false; b.textContent="Save package";
 }
-async function deletePm(rowNum){ if(!confirm("Delete this package option?")) return;
+async function deletePm(rowNum){ if(!(await askConfirm("Delete this package option?"))) return;
   try{ const d=await api({action:"adminDeletePackageProduct",token,rowNum}); if(d.success){ toast("Deleted"); loadPackageProducts(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
 
 // ── orders(套餐訂購需求) ──
@@ -628,11 +696,15 @@ function reqBadge(s){ return s==="scheduled"?'<span class="badge ok">Scheduled</
 function renderRequests(){
   if(!reqList.length){ $("requests-list").innerHTML='<p class="muted">No requests yet.</p>'; return; }
   $("requests-list").innerHTML=reqList.map(r=>{
+    const isResched=r.type==="reschedule";
     const creditInfo=(r.credits&&r.credits.length)?r.credits.map(c=>esc(c.package_name)+" ("+c.remaining_sessions+")").join(", "):"No active credits";
     const actions=r.status==="new"
-      ? `<button class="btn btn--sm" onclick="openScheduler('${r.request_id}')">Schedule</button><button class="btn btn--sm btn--danger" onclick="dismissRequest('${r.request_id}')">Dismiss</button>`
+      ? (isResched
+          ? `<button class="btn btn--sm" onclick="openRescheduleFromRequest('${r.request_id}')">Reschedule…</button><button class="btn btn--sm btn--danger" onclick="dismissRequest('${r.request_id}')">Dismiss</button>`
+          : `<button class="btn btn--sm" onclick="openScheduler('${r.request_id}')">Schedule</button><button class="btn btn--sm btn--danger" onclick="dismissRequest('${r.request_id}')">Dismiss</button>`)
       : "";
-    const wants=r.requested_date?`<div class="reason" style="margin-top:.5rem;"><strong>Wants:</strong> ${r.requested_course?esc(r.requested_course)+" · ":""}${esc(r.requested_date)}${r.requested_time?(" "+esc(r.requested_time)):""}</div>`:"";
+    const reschedTag=isResched?`<div style="font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--warn);margin-top:.35rem;">Date change request${r.booking_id_ref?(" · booking "+esc(r.booking_id_ref)):""}</div>`:"";
+    const wants=r.requested_date?`<div class="reason" style="margin-top:.5rem;"><strong>${isResched?"New date wanted:":"Wants:"}</strong> ${r.requested_course?esc(r.requested_course)+" · ":""}${esc(fmtShort(r.requested_date))}${r.requested_time?(" "+esc(r.requested_time)):""}</div>`:"";
     const noteHtml=r.note?`<div class="note-body" style="margin-top:.5rem;">${esc(r.note)}</div>`:"";
     return `<div class="day-row">
       <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
@@ -640,9 +712,9 @@ function renderRequests(){
         <div class="det">${esc(r.email)}${r.phone?(" · "+esc(r.phone)):""} · ${esc(r.timestamp||"")}</div></div>
         <div>${reqBadge(r.status)}</div>
       </div>
-      ${wants}${noteHtml}
-      <div class="muted" style="font-size:.78rem;margin-top:.4rem;">Active credits: ${creditInfo}</div>
-      ${actions?`<div style="margin-top:.6rem;display:flex;gap:.4rem;">${actions}</div>`:""}
+      ${reschedTag}${wants}${noteHtml}
+      ${isResched?"":`<div class="muted" style="font-size:.78rem;margin-top:.4rem;">Active credits: ${creditInfo}</div>`}
+      ${actions?`<div style="margin-top:.6rem;display:flex;gap:.4rem;flex-wrap:wrap;">${actions}</div>`:""}
     </div>`;
   }).join("");
 }
@@ -731,8 +803,108 @@ async function confirmSchedule(){
   btn.disabled=false; btn.textContent="Book it";
 }
 async function dismissRequest(rid){
-  if(!confirm("Dismiss this request without booking?")) return;
+  if(!(await askConfirm("Dismiss this request without booking?"))) return;
   try{ const d=await api({action:"adminUpdateRequestStatus",token,request_id:rid,status:"dismissed"}); if(d.success){ toast("Dismissed"); loadRequests(); } else toast(d.error||"Failed"); }
+  catch(e){ toast("Connection failed"); }
+}
+// ── 後台改期介面(兩個入口:管理員主動 / 客戶需求)——只列該課程其他開放時段 ──
+var rsx={ bookingId:"", serviceId:"", requestId:"", curDate:"", curTime:"", slot:null };
+async function ensureServicesLoaded(){ if(!services.length){ try{ const sd=await api({action:"adminListServices",token}); services=(sd&&sd.services)||[]; }catch(e){} } }
+function openRsx(){ $("rsx-modal").classList.remove("hidden"); }
+function closeRsx(){ $("rsx-modal").classList.add("hidden"); }
+// 入口 A:管理員主動 —— 從日曆某筆已排定的預約點「Reschedule」
+async function openRescheduleBooking(bookingId){
+  const b=(calBookings||[]).find(x=>x.booking_id===bookingId); if(!b) return;
+  await ensureServicesLoaded();
+  rsx={ bookingId:b.booking_id, serviceId:svcIdForCourse(b.service_name), requestId:"", curDate:b.booking_date, curTime:b.booking_time||"", slot:null };
+  $("rsx-cur").innerHTML="Booking <b>"+esc(b.booking_id)+"</b> — "+esc(b.service_name||"")+"<br>"+esc(b.name||b.email||"")+"<br>Currently: "+esc(fmtShort(b.booking_date))+" "+esc(b.booking_time||"");
+  dpMin("rsx-date",todayStr()); dpSet("rsx-date","");
+  $("rsx-reason").value=""; setStatus("rsx-status","","");
+  $("rsx-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Choose a date.</span>';
+  openRsx();
+}
+// 入口 B:客戶改期需求 —— 帶入其想要的日期 / 時段,可確認或改選
+async function openRescheduleFromRequest(rid){
+  const r=(reqList||[]).find(x=>x.request_id===rid); if(!r) return;
+  if(!r.booking_id_ref) return toast("This request isn't linked to a booking");
+  await ensureServicesLoaded();
+  rsx={ bookingId:r.booking_id_ref, serviceId:svcIdForCourse(r.ref_service_name||r.requested_course||""), requestId:r.request_id, curDate:r.ref_date||"", curTime:r.ref_time||"", slot:null };
+  $("rsx-cur").innerHTML="Booking <b>"+esc(r.booking_id_ref)+"</b> — "+esc(r.ref_service_name||r.requested_course||"")+"<br>"+esc(r.name||r.email||"")+"<br>Currently: "+esc(fmtShort(r.ref_date))+" "+esc(r.ref_time||"")+(r.requested_date?('<br><span style="color:var(--warn);">Customer asked for: '+esc(fmtShort(r.requested_date))+" "+esc(r.requested_time||"")+"</span>"):"");
+  $("rsx-reason").value=r.note||""; setStatus("rsx-status","","");
+  dpMin("rsx-date",todayStr());
+  if(r.requested_date){ dpSet("rsx-date",r.requested_date); openRsx(); await rsxLoadSlots(r.requested_time||""); }
+  else { dpSet("rsx-date",""); $("rsx-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Choose a date.</span>'; openRsx(); }
+}
+async function rsxLoadSlots(preselectTime){
+  const date=$("rsx-date").value; rsx.slot=null;
+  if(!date){ $("rsx-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Choose a date.</span>'; return; }
+  $("rsx-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Loading…</span>';
+  try{
+    const d=await api({action:"getTimeSlots",date:date,service_id:rsx.serviceId}); let slots=(d&&d.slots)||[];
+    slots=slots.filter(s=>!(date===rsx.curDate && s.time_slot===rsx.curTime)); // 排除目前這筆的時段,只留「其他」可換時段
+    if(!slots.length){ $("rsx-slots").innerHTML='<span class="muted" style="font-size:.88rem;">No other open times for this course on this date.</span>'; return; }
+    $("rsx-slots").innerHTML=slots.map(s=>`<span class="slot${(preselectTime&&s.time_slot===preselectTime)?" sel":""}" onclick="pickRsxSlot(this,'${s.time_slot}')">${s.time_slot}<span class="cap">${s.remaining} left</span></span>`).join("");
+    if(preselectTime && slots.some(s=>s.time_slot===preselectTime)) rsx.slot=preselectTime;
+  }catch(e){ $("rsx-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Could not load times.</span>'; }
+}
+function pickRsxSlot(el,t){ rsx.slot=t; document.querySelectorAll("#rsx-slots .slot").forEach(s=>s.classList.remove("sel")); el.classList.add("sel"); }
+async function applyReschedule(){
+  const date=$("rsx-date").value;
+  if(!date) return setStatus("rsx-status","Choose a new date","err");
+  if(!rsx.slot) return setStatus("rsx-status","Choose one of the available times","err");
+  const btn=$("rsx-apply"); btn.disabled=true; btn.textContent="Applying…";
+  try{
+    const payload={action:"adminRescheduleBooking",token,booking_id:rsx.bookingId,new_date:date,new_time:rsx.slot,reason:$("rsx-reason").value.trim()};
+    if(rsx.requestId) payload.request_id=rsx.requestId;
+    const d=await api(payload);
+    if(d.success){ toast("Rescheduled ✓"); closeRsx(); loadCalendar(); if(rsx.requestId) loadRequests(); }
+    else setStatus("rsx-status",d.error||"Could not reschedule","err");
+  }catch(e){ setStatus("rsx-status","Connection failed","err"); }
+  btn.disabled=false; btn.textContent="Apply change";
+}
+
+// ── announcements(公告:顧客頁 + 登入前顯示)──
+var annList=[];
+async function loadAnnouncements(){
+  try{ const d=await api({action:"adminListAnnouncements",token}); annList=(d&&d.announcements)||[]; renderAnnouncements(); }
+  catch(e){ $("ann-list").innerHTML='<p class="muted">Could not load announcements.</p>'; }
+}
+function renderAnnouncements(){
+  if(!annList.length){ $("ann-list").innerHTML='<p class="muted">No announcements yet.</p>'; return; }
+  $("ann-list").innerHTML=annList.map((a,i)=>{
+    const badge=a.active?'<span class="badge ok">Active</span>':'<span class="badge pend">Hidden</span>';
+    const typ=a.type==="holiday"?"Holiday":a.type==="event"?"Event":"Info";
+    const range=[a.starts?("from "+a.starts):"",a.ends?("until "+a.ends):""].filter(Boolean).join(" ");
+    return `<div class="day-row"><div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;">
+      <div><div class="svc">${a.title?esc(a.title):("("+typ+")")}</div><div class="det">${esc(typ)}${range?(" · "+esc(range)):""}</div></div><div>${badge}</div></div>
+      <div class="note-body" style="margin-top:.4rem;">${esc(a.message)}</div>
+      <div style="margin-top:.6rem;display:flex;gap:.4rem;flex-wrap:wrap;">
+        <button class="btn btn--sm" onclick="editAnnouncement(${i})">Edit</button>
+        <button class="btn btn--sm" onclick="toggleAnnouncement(${i})">${a.active?"Hide":"Show"}</button>
+        <button class="btn btn--sm btn--danger" onclick="deleteAnnouncement(${i})">Delete</button>
+      </div></div>`;
+  }).join("");
+}
+function resetAnnForm(){ $("an-row").value=""; $("an-title").value=""; $("an-message").value=""; $("an-type").value="info"; dpSet("an-starts",""); dpSet("an-ends",""); $("an-active").checked=true; $("an-form-title").textContent="New announcement"; setStatus("an-status","",""); }
+function editAnnouncement(i){ const a=annList[i]; if(!a) return; $("an-row").value=a.rowNum; $("an-title").value=a.title||""; $("an-message").value=a.message||""; $("an-type").value=a.type||"info"; dpSet("an-starts",a.starts||""); dpSet("an-ends",a.ends||""); $("an-active").checked=!!a.active; $("an-form-title").textContent="Edit announcement"; window.scrollTo({top:0,behavior:"smooth"}); }
+async function saveAnnouncement(){
+  const message=$("an-message").value.trim();
+  if(!message) return setStatus("an-status","Message is required","err");
+  const ann={ message:message, title:$("an-title").value.trim(), type:$("an-type").value, active:$("an-active").checked, starts:$("an-starts").value, ends:$("an-ends").value };
+  const rn=$("an-row").value; if(rn) ann.rowNum=Number(rn);
+  const btn=$("an-save"); btn.disabled=true; btn.textContent="Saving…";
+  try{ const d=await api({action:"adminSaveAnnouncement",token,announcement:ann});
+    if(d.success){ toast("Saved ✓"); resetAnnForm(); loadAnnouncements(); } else setStatus("an-status",d.error||"Could not save","err");
+  }catch(e){ setStatus("an-status","Connection failed","err"); }
+  btn.disabled=false; btn.textContent="Save";
+}
+async function toggleAnnouncement(i){ const a=annList[i]; if(!a) return;
+  try{ const d=await api({action:"adminSaveAnnouncement",token,announcement:{rowNum:a.rowNum,message:a.message,title:a.title,type:a.type,starts:a.starts,ends:a.ends,active:!a.active}});
+    if(d.success){ toast(a.active?"Hidden":"Shown"); loadAnnouncements(); } else toast(d.error||"Failed");
+  }catch(e){ toast("Connection failed"); }
+}
+async function deleteAnnouncement(i){ const a=annList[i]; if(!a) return; if(!(await askConfirm("Delete this announcement?"))) return;
+  try{ const d=await api({action:"adminDeleteAnnouncement",token,rowNum:a.rowNum}); if(d.success){ toast("Deleted"); loadAnnouncements(); } else toast(d.error||"Failed"); }
   catch(e){ toast("Connection failed"); }
 }
 
@@ -757,7 +929,7 @@ async function saveService(){
   try{ const d=await api({action:"adminSaveService",token,service}); if(d.success){ toast("Saved"); resetSvcForm(); loadServices(); } else setStatus("svc-status",d.error||"Save failed","err"); }catch(e){ setStatus("svc-status","Connection failed","err"); }
   b.disabled=false; b.textContent="Save";
 }
-async function deleteSvc(i){ const s=services[i]; if(!confirm("Delete this service?")) return; try{ const d=await api({action:"adminDeleteService",token,rowNum:s.rowNum}); if(d.success){ toast("Deleted"); loadServices(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
+async function deleteSvc(i){ const s=services[i]; if(!(await askConfirm("Delete this service?"))) return; try{ const d=await api({action:"adminDeleteService",token,rowNum:s.rowNum}); if(d.success){ toast("Deleted"); loadServices(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
 
 // ── time slots ──
 function svcNameById(id){ if(!id) return ""; const s=(services||[]).find(x=>String(x.id)===String(id)); return s?s.name:""; }
@@ -794,8 +966,8 @@ async function generateSlots(){
     if(d.success){ toast(`Added ${d.created}`+(d.skipped?`, skipped ${d.skipped}`:"")); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); }
   b.disabled=false; b.textContent="Add slots";
 }
-async function deleteSlot(rowNum){ if(!confirm("Delete this time slot?")) return; try{ const d=await api({action:"adminDeleteTimeSlot",token,rowNum}); if(d.success){ toast("Deleted"); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
-async function dedupeSlots(){ if(!confirm("Remove duplicate slots (same date & time)?")) return; try{ const d=await api({action:"adminDedupeTimeSlots",token}); if(d.success){ toast(d.removed?`Removed ${d.removed}`:"No duplicates"); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
+async function deleteSlot(rowNum){ if(!(await askConfirm("Delete this time slot?"))) return; try{ const d=await api({action:"adminDeleteTimeSlot",token,rowNum}); if(d.success){ toast("Deleted"); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
+async function dedupeSlots(){ if(!(await askConfirm("Remove duplicate slots (same date & time)?"))) return; try{ const d=await api({action:"adminDedupeTimeSlots",token}); if(d.success){ toast(d.removed?`Removed ${d.removed}`:"No duplicates"); loadTimeSlots(); } else toast(d.error||"Failed"); }catch(e){ toast("Connection failed"); } }
 // ── 自訂英文日期選擇器(取代原生 input[type=date],不受瀏覽器語系影響) ──
 var DP_MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 var DP_DOW=["Su","Mo","Tu","We","Th","Fr","Sa"];
@@ -837,6 +1009,12 @@ function dpMin(id,v){ var d=_dp[id]; var el=d?d.input:document.getElementById(id
 document.addEventListener("click",dpCloseAll);
 window.addEventListener("scroll",dpCloseAll,true);
 dpInit("ts-start"); dpInit("ts-end"); dpInit("sched-date",loadSchedSlots);
+dpInit("an-starts"); dpInit("an-ends");
+dpInit("rsx-date",rsxLoadSlots);
+// App 內建英文確認視窗(取代 native confirm —— native 對話框按鈕會隨瀏覽器語系顯示中文)
+var _cfResolve=null;
+function askConfirm(msg){ return new Promise(function(resolve){ _cfResolve=resolve; $("cf-msg").textContent=msg; $("cf-modal").classList.remove("hidden"); }); }
+function cfAnswer(v){ $("cf-modal").classList.add("hidden"); var r=_cfResolve; _cfResolve=null; if(r) r(v); }
 
 restoreSession();  // 載入時若有未逾時的登入記憶,自動還原免重新驗證
 </script>

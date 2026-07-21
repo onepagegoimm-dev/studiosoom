@@ -191,7 +191,6 @@
     <div class="tab active" data-tab="whatson" onclick="switchTab('whatson')">Booking availability</div>
     <div class="tab" data-tab="account" onclick="switchTab('account')">My account</div>
     <div class="tab" data-tab="buy" onclick="switchTab('buy')">Buy</div>
-    <div class="tab" data-tab="request" onclick="switchTab('request')">Request a session</div>
   </div>
 
   <!-- ACCOUNT -->
@@ -206,6 +205,11 @@
       <h2>Bookings</h2>
       <div id="bookings"><p class="muted">Loading…</p></div>
     </div>
+    <div class="panel">
+      <span class="eyebrow">Your requests</span>
+      <h2>Sent requests</h2>
+      <div id="my-requests"><p class="muted">Loading…</p></div>
+    </div>
   </div>
 
   <!-- BUY -->
@@ -215,27 +219,6 @@
       <h2>Sessions &amp; Packages</h2>
       <p class="muted" style="font-size:.9rem;margin-bottom:.4rem;">Orders are added to your account right away and become bookable once we've confirmed your payment — we'll contact you to arrange it.</p>
       <div id="buy-products" style="margin-top:1rem;"><p class="muted">Loading…</p></div>
-    </div>
-  </div>
-
-  <!-- REQUEST -->
-  <div id="tab-request" class="hidden">
-    <div class="panel">
-      <span class="eyebrow">Request a session</span>
-      <h2>Tell us when you'd like to come</h2>
-      <p class="muted" style="font-size:.9rem;margin-bottom:1rem;">Send us a note with the days and times that suit you. We'll arrange a time from your sessions and confirm it with you. You can send up to <b id="req-cap">5</b> requests a day.</p>
-      <label>Which session / package? (optional)</label>
-      <select id="rq-credit"></select>
-      <label>Your request <span class="req">*</span></label>
-      <textarea id="rq-note" placeholder="e.g. I'd like a Tuesday or Thursday morning, around 10am." oninput="checkReqReady()"></textarea>
-      <button class="btn btn--solid btn--block" id="req-btn" onclick="submitRequest()" disabled>Send request</button>
-      <div class="status" id="req-status"></div>
-      <p class="muted" id="req-left" style="font-size:.82rem;margin-top:.6rem;"></p>
-    </div>
-    <div class="panel">
-      <span class="eyebrow">Your requests</span>
-      <h2>Sent requests</h2>
-      <div id="my-requests"><p class="muted">Loading…</p></div>
     </div>
   </div>
 
@@ -393,13 +376,13 @@ async function enterApp(){
   $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("signout").classList.remove("hidden");
   dpMin("wo-date",todayStr()); dpMin("rs-date",todayStr());
   await loadAccount(); loadBuy();
-  var h=(location.hash||"").replace("#",""); // 從首頁 #buy / #request / #whatson / #account 連入;預設 Booking availability
-  if(h==="buy"||h==="request"||h==="whatson"||h==="account") switchTab(h);
+  var h=(location.hash||"").replace("#",""); if(h==="request") h="whatson"; // #request 已併入 Booking availability
+  if(h==="buy"||h==="whatson"||h==="account") switchTab(h);
   else switchTab("whatson");
 }
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
-  ["account","buy","request","whatson"].forEach(n=>$("tab-"+n).classList.toggle("hidden",n!==name));
+  ["account","buy","whatson"].forEach(n=>$("tab-"+n).classList.toggle("hidden",n!==name));
   if(name==="whatson") loadWhatsOn();
   window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -411,7 +394,7 @@ async function loadAccount(){
     if(d.error){ if(!/sign in again/i.test(d.error)) toast(d.error); return; }
     member=d.member||member; packages=d.packages||[]; bookings=d.bookings||[];
     requests=d.requests||[]; if(typeof d.requestsLeftToday==="number") requestsLeftToday=d.requestsLeftToday;
-    if(typeof d.maxRequestsPerDay==="number") $("req-cap").textContent=String(d.maxRequestsPerDay);
+    if(typeof d.maxRequestsPerDay==="number"){ var _rc=$("req-cap"); if(_rc) _rc.textContent=String(d.maxRequestsPerDay); }
     if(member.name) $("hello").textContent="Welcome back, "+member.name;
     renderCredits(); renderBookings(); renderRequestCredits(); renderMyRequests();
     updateReqLeft(requestsLeftToday);
@@ -535,7 +518,7 @@ function buySingle(id){
   const s=singles.filter(x=>String(x.id)===String(id))[0]; if(!s) return;
   askConfirm("Order 1 × "+s.name+" for "+CURRENCY+s.price+"? We'll contact you to arrange payment, and your session becomes bookable once we confirm it.", async()=>{
     try{ const d=await api({action:"purchaseSingle",email,sessionToken,course_id:id});
-      if(d.success){ toast("Order placed ✓ — check your email for payment details"); await loadAccount(); switchTab("request"); } else toast(d.error||"Could not complete purchase");
+      if(d.success){ toast("Order placed ✓ — check your email for payment details"); await loadAccount(); switchTab("whatson"); } else toast(d.error||"Could not complete purchase");
     }catch(e){ toast("Connection failed"); }
   });
 }
@@ -543,7 +526,7 @@ function buyPackage(id){
   const p=products.filter(x=>String(x.id)===String(id))[0]; if(!p) return;
   askConfirm("Order "+p.name+" for "+CURRENCY+p.price+"? We'll contact you to arrange payment, and your sessions become bookable once we confirm it.", async()=>{
     try{ const d=await api({action:"purchasePackage",email,sessionToken,product_id:id});
-      if(d.success){ toast("Order placed ✓ — check your email for payment details"); await loadAccount(); switchTab("request"); } else toast(d.error||"Could not complete purchase");
+      if(d.success){ toast("Order placed ✓ — check your email for payment details"); await loadAccount(); switchTab("whatson"); } else toast(d.error||"Could not complete purchase");
     }catch(e){ toast("Connection failed"); }
   });
 }
@@ -594,7 +577,7 @@ async function sendWhatsOnRequest(){
   const btn=$("wo-send"); if(btn){ btn.disabled=true; btn.textContent="Sending…"; }
   try{
     const d=await api({action:"submitBookingRequest",email,sessionToken,package_id:credId,requested_date:woSelected,requested_time:woSlot,note});
-    if(d.success){ toast("Request sent ✓"); if(typeof d.requestsLeftToday==="number") requestsLeftToday=d.requestsLeftToday; await loadAccount(); switchTab("request"); }
+    if(d.success){ toast("Request sent ✓"); if(typeof d.requestsLeftToday==="number") requestsLeftToday=d.requestsLeftToday; await loadAccount(); switchTab("account"); }
     else { setStatus("wo-status",d.error||"Could not send request","err"); if(btn){ btn.disabled=false; btn.textContent="Send request"; } }
   }catch(e){ setStatus("wo-status","Connection failed","err"); if(btn){ btn.disabled=false; btn.textContent="Send request"; } }
 }

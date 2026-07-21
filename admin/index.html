@@ -154,6 +154,7 @@
     <div class="tab" data-tab="packages" onclick="switchTab('packages')">User status</div>
     <div class="tab" data-tab="orders" onclick="switchTab('orders')">Orders</div>
     <div class="tab" data-tab="announce" onclick="switchTab('announce')">Announcements</div>
+    <div class="tab" data-tab="settings" onclick="switchTab('settings')">Settings</div>
   </div>
 
   <!-- SCHEDULE / CALENDAR -->
@@ -249,6 +250,27 @@
       <h2 style="font-size:1.6rem;margin-bottom:.6rem;">Current &amp; past</h2>
       <p class="muted" style="font-size:.85rem;margin-bottom:1rem;">Active announcements show on the customer pages (including before sign-in). Holidays show in red, events in green.</p>
       <div id="ann-list"><p class="muted">Loading…</p></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS(營運參數:銀行帳號 / 通知信箱 / 聯絡資訊 / 每日上限) -->
+  <div id="tab-settings" class="hidden">
+    <div class="panel">
+      <span class="eyebrow">Settings</span>
+      <h2 style="font-size:1.6rem;margin-bottom:.4rem;">Studio settings</h2>
+      <p class="muted" style="font-size:.85rem;margin-bottom:1rem;">These are also editable directly in the <b>Settings</b> tab of the Google Sheet — both stay in sync. Who can sign in to this admin is managed separately in Apps Script (Script Properties) for security.</p>
+      <label>Bank details — emailed to customers when they buy</label>
+      <textarea id="set-bank" rows="4" placeholder="Account name: Studio Soom&#10;Bank: ...&#10;Sort code: 00-00-00&#10;Account no.: 12345678"></textarea>
+      <label>Notification email — new orders &amp; requests (blank = first admin)</label>
+      <input type="email" id="set-notify" placeholder="studio@email.com" />
+      <label>Contact line shown to customers</label>
+      <input type="text" id="set-contact" placeholder="+44 7444 037045 (WhatsApp) / book@studiosoom.co.uk" />
+      <label>Max booking requests per customer per day</label>
+      <input type="number" id="set-maxreq" min="1" max="20" placeholder="5" style="max-width:140px;" />
+      <div style="display:flex;gap:.6rem;margin-top:.6rem;">
+        <button class="btn btn--solid" id="set-save" onclick="saveSettings()">Save settings</button>
+      </div>
+      <div class="status" id="set-status"></div>
     </div>
   </div>
 
@@ -412,7 +434,7 @@ function clearSession(){ try{ localStorage.removeItem('soom_admin'); }catch(e){}
 function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_admin')||'null'); if(s&&s.token&&s.exp>Date.now()){ token=s.token; enterMain(); } else { clearSession(); } }catch(e){} }
 
 let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複點擊
-const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus","adminScheduleFromRequest","adminUpdateRequestStatus","adminRescheduleBooking","adminSaveAnnouncement","adminDeleteAnnouncement"];
+const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus","adminScheduleFromRequest","adminUpdateRequestStatus","adminRescheduleBooking","adminSaveAnnouncement","adminDeleteAnnouncement","adminSaveSettings"];
 async function api(p){
   const isMut=MUTATIONS.indexOf(p.action)!==-1;
   if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }
@@ -460,9 +482,10 @@ function enterMain(){
 }
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
-  ["schedule","requests","packages","menu","orders","services","slots","announce"].forEach(n=>$("tab-"+n).classList.toggle("hidden",n!==name));
+  ["schedule","requests","packages","menu","orders","services","slots","announce","settings"].forEach(n=>$("tab-"+n).classList.toggle("hidden",n!==name));
   if(name==="requests") loadRequests();
   if(name==="announce") loadAnnouncements();
+  if(name==="settings") loadSettings();
   if(name==="packages") loadPackages();
   if(name==="menu") loadPackageProducts();
   if(name==="orders") loadOrders();
@@ -906,6 +929,28 @@ async function toggleAnnouncement(i){ const a=annList[i]; if(!a) return;
 async function deleteAnnouncement(i){ const a=annList[i]; if(!a) return; if(!(await askConfirm("Delete this announcement?"))) return;
   try{ const d=await api({action:"adminDeleteAnnouncement",token,rowNum:a.rowNum}); if(d.success){ toast("Deleted"); loadAnnouncements(); } else toast(d.error||"Failed"); }
   catch(e){ toast("Connection failed"); }
+}
+
+// ── settings(營運參數:銀行帳號等;與試算表 Settings 分頁同源)──
+async function loadSettings(){
+  try{ const d=await api({action:"adminListSettings",token});
+    // 讀取失敗時保持表單原狀 — 若清空欄位,管理者接著按儲存會把試算表的設定覆寫成空值
+    if(d.error){ setStatus("set-status",d.error,"err"); return; }
+    const s=d.settings||{};
+    $("set-bank").value=s.bank_details||""; $("set-notify").value=s.notify_email||"";
+    $("set-contact").value=s.contact_line||""; $("set-maxreq").value=s.max_requests_per_day||"";
+    setStatus("set-status","","");
+  }catch(e){ setStatus("set-status","Could not load settings","err"); }
+}
+async function saveSettings(){
+  const settings={ bank_details:$("set-bank").value, notify_email:$("set-notify").value.trim(),
+    contact_line:$("set-contact").value.trim(), max_requests_per_day:$("set-maxreq").value.trim() };
+  const btn=$("set-save"); btn.disabled=true; btn.textContent="Saving…";
+  try{ const d=await api({action:"adminSaveSettings",token,settings});
+    if(d.success){ toast("Settings saved ✓"); setStatus("set-status","Saved — changes take effect immediately.","ok"); }
+    else setStatus("set-status",d.error||"Could not save","err");
+  }catch(e){ setStatus("set-status","Connection failed","err"); }
+  btn.disabled=false; btn.textContent="Save settings";
 }
 
 // ── services ──

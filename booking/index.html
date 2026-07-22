@@ -586,6 +586,20 @@ async function sendWhatsOnRequest(){
 const WO_DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 // 課程名 → service_id(用 getServices 的 singles 對照);找不到回空=通用
 function svcIdForCourse(name){ const s=(singles||[]).find(x=>String(x.name)===String(name)); return s?String(s.id):""; }
+// service_id → 課程名(反查);找不到回空
+function svcNameForId(id){ const s=(singles||[]).find(x=>String(x.id)===String(id)); return s?s.name:""; }
+// 依課程分組時段:回傳 [{label, times[]}](service_id 空 = 開放全部課程)
+function groupSlotsByCourse(slots){
+  const groups={}, order=[];
+  (slots||[]).forEach(function(s){
+    const k=s.service_id?String(s.service_id):"__any";
+    if(!groups[k]){ groups[k]=[]; order.push(k); }
+    groups[k].push(s.time_slot);
+  });
+  return order.map(function(k){
+    return { label: k==="__any" ? "Open to all courses" : (svcNameForId(k)||"Course"), times: groups[k] };
+  });
+}
 function populateWoCourse(){
   const sel=$("wo-course"); if(!sel) return;
   const list=usableCredits(), cur=sel.value;
@@ -657,8 +671,13 @@ function renderWoDayDetail(){
   if(woMode==="all"){
     if(!woSlots.length){ html+='<p class="muted" style="margin-bottom:1rem;">No openings on this day. Try another day.</p>'; }
     else {
-      html+='<div class="muted" style="font-size:.8rem;margin-bottom:.35rem;">Times with openings on this day:</div>';
-      html+='<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1rem;">'+woSlots.map(s=>`<span class="badge muted">${s.time_slot}</span>`).join("")+'</div>';
+      html+='<div class="muted" style="font-size:.8rem;margin-bottom:.5rem;">Open times on this day, by course:</div>';
+      html+=groupSlotsByCourse(woSlots).map(function(g){
+        return '<div style="margin-bottom:.7rem;">'
+          +'<div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem;">'+esc(g.label)+'</div>'
+          +'<div style="display:flex;flex-wrap:wrap;gap:.4rem;">'+g.times.map(function(t){return '<span class="badge muted">'+esc(t)+'</span>';}).join("")+'</div>'
+          +'</div>';
+      }).join("");
     }
     html+='<p class="muted" style="font-size:.85rem;margin:.2rem 0 1rem;">Switch to <b>My courses</b> to request one of these times — the studio confirms the final time.</p>';
     html+='<button class="btn" onclick="setWhatsOnMode(\'mine\')">My courses</button>';

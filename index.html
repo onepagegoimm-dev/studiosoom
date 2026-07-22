@@ -303,11 +303,15 @@ loadAnnouncements();
 // ── 公開空堂日曆(所有課程;沿用公開 getMonthAvailability / getTimeSlots)──
 var LA_MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 var LA_DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-var laY=null, laM=0, laAvail={}, laSel="";
+var laY=null, laM=0, laAvail={}, laSel="", laSvc={}, laSvcLoaded=false;
 function laPad(n){ return String(n).padStart(2,"0"); }
 function laTodayStr(){ var d=new Date(); return d.getFullYear()+"-"+laPad(d.getMonth()+1)+"-"+laPad(d.getDate()); }
 function laFmt(ds){ try{ return new Date(ds+"T00:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); }catch(e){ return ds; } }
-async function laLoad(){ if(laY==null){ var t=new Date(); laY=t.getFullYear(); laM=t.getMonth(); } await laLoadMonth(); }
+async function laLoad(){
+  if(laY==null){ var t=new Date(); laY=t.getFullYear(); laM=t.getMonth(); }
+  if(!laSvcLoaded){ try{ var sd=await api({action:"getServices"}); ((sd&&sd.services)||[]).forEach(function(s){ laSvc[String(s.id)]=s.name; }); }catch(e){} laSvcLoaded=true; }
+  await laLoadMonth();
+}
 async function laLoadMonth(){
   var last=new Date(laY,laM+1,0).getDate();
   var from=laY+"-"+laPad(laM+1)+"-01", to=laY+"-"+laPad(laM+1)+"-"+laPad(last);
@@ -338,7 +342,13 @@ async function laSelectDay(ds){
   var slots=[]; try{ var d=await api({action:"getTimeSlots",date:ds}); slots=(d&&d.slots)||[]; }catch(e){}
   if(!el) return;
   if(!slots.length){ el.innerHTML='<p class="muted" style="font-size:.9rem;">No open times on '+esc(laFmt(ds))+'. Try another day.</p>'; return; }
-  el.innerHTML='<div class="muted" style="font-size:.85rem;margin-bottom:.5rem;">Open times on '+esc(laFmt(ds))+':</div><div style="display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;">'+slots.map(function(s){return '<span class="avail-chip">'+esc(s.time_slot)+'</span>';}).join("")+'</div><p style="margin-top:1.1rem;"><a href="./booking/index.html#whatson" class="btn btn--solid" style="font-size:.72rem;padding:.7rem 1.6rem;">Sign in to request a time</a></p>';
+  var groups={}, order=[];
+  slots.forEach(function(s){ var k=s.service_id?String(s.service_id):"__any"; if(!groups[k]){ groups[k]=[]; order.push(k); } groups[k].push(s.time_slot); });
+  var body=order.map(function(k){
+    var label=k==="__any"?"Open to all courses":(laSvc[k]||"Course");
+    return '<div style="margin-bottom:.7rem;"><div style="font-size:.8rem;color:var(--ink);font-weight:500;margin-bottom:.3rem;">'+esc(label)+'</div><div style="display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;">'+groups[k].map(function(t){return '<span class="avail-chip">'+esc(t)+'</span>';}).join("")+'</div></div>';
+  }).join("");
+  el.innerHTML='<div class="muted" style="font-size:.85rem;margin-bottom:.6rem;">Open on '+esc(laFmt(ds))+':</div>'+body+'<p style="margin-top:1.1rem;"><a href="./booking/index.html#whatson" class="btn btn--solid" style="font-size:.72rem;padding:.7rem 1.6rem;">Sign in to request a time</a></p>';
 }
 laLoad();
 </script>

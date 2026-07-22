@@ -462,7 +462,7 @@ function buyCard(item){
   const metaBits=[];
   if(isPkg&&item.total_sessions) metaBits.push(item.total_sessions+" sessions");
   if(!isPkg&&item.duration_min) metaBits.push(item.duration_min+" min");
-  if(isPkg&&item.valid_label) metaBits.push(item.valid_label);
+  if(isPkg&&item.valid_days) metaBits.push("Valid for "+item.valid_days+" days");
   const meta=metaBits.join(" · ");
   // 套餐照參考站樣式:總價 + (每堂均價);單堂:價格 / session
   let price;
@@ -492,7 +492,7 @@ function buySection(title,sub,band,tColor,sColor,subs){
 const POLICY_HTML=`<div style="padding:1rem 1.2rem;background:var(--bg-warm);border:1px solid var(--line);border-radius:4px;font-size:.84rem;color:var(--ink-soft);line-height:1.6;"><b style="font-weight:500;letter-spacing:.12em;text-transform:uppercase;font-size:.68rem;color:var(--muted);display:block;margin-bottom:.3rem;">Studio policy</b>Reservations, cancellations and schedule changes must be made at least 24 hours in advance. Within 24 hours of your session, changes can't be made online — please contact us directly. Same-day cancellations may result in the session being deducted from your package.</div>`;
 function renderBuy(){
   const sList=singles.map(s=>({kind:"single",cat:catOf(s),mth:methodOf(s),id:s.id,name:s.name,price:s.price,duration_min:s.duration_min,description:s.description,delivery:s.delivery}));
-  const pList=products.map(p=>({kind:"package",cat:catOf(p),mth:methodOf(p),id:p.id,name:p.name,price:p.price,valid_label:p.valid_label,total_sessions:p.total_sessions,items:p.items,description:p.description,has_online:p.has_online}));
+  const pList=products.map(p=>({kind:"package",cat:catOf(p),mth:methodOf(p),id:p.id,name:p.name,price:p.price,valid_days:p.valid_days,valid_label:p.valid_label,total_sessions:p.total_sessions,items:p.items,description:p.description,has_online:p.has_online}));
   const all=sList.concat(pList);
   // 第一層:方法(Gyrotonic / Gyrokinesis);第二層:格式(1:1 / Group);模式(Online)用徽章
   // 跨方法或跨格式的套餐 → Combination packages 區

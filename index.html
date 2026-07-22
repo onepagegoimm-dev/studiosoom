@@ -238,7 +238,7 @@ function homeCard(item){
   }
   var metaBits=[];
   if(isPkg&&item.total_sessions) metaBits.push(esc(item.total_sessions)+' sessions');
-  if(isPkg&&item.valid_label) metaBits.push(esc(item.valid_label));
+  if(isPkg&&item.valid_days) metaBits.push("Valid for "+esc(String(item.valid_days))+" days");
   var vlabel=metaBits.length?('<div class="meta">'+metaBits.join(' · ')+'</div>'):"";
   var tags='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:.5rem;">'+catTag(item.cat)+(isOnline(item)?onlineTag():"")+'</div>';
   return '<div class="card" style="border-top:3px solid '+accent+'">'+tags+'<h3>'+esc(item.name)+'</h3>'+vlabel+
@@ -264,7 +264,7 @@ async function loadProducts(){
     const cs=await api({action:"getServices"}); const singles=(cs&&cs.services)||[];
     const d=await api({action:"getPackageProducts"}); const list=(d&&d.products)||[];
     const sList=singles.map(function(s){return {kind:"single",cat:catOf(s),mth:methodOf(s),id:s.id,name:s.name,price:s.price,description:s.description,delivery:s.delivery};});
-    const pList=list.map(function(p){return {kind:"package",cat:catOf(p),mth:methodOf(p),id:p.id,name:p.name,price:p.price,valid_label:p.valid_label,total_sessions:p.total_sessions,items:p.items,description:p.description,has_online:p.has_online};});
+    const pList=list.map(function(p){return {kind:"package",cat:catOf(p),mth:methodOf(p),id:p.id,name:p.name,price:p.price,valid_days:p.valid_days,valid_label:p.valid_label,total_sessions:p.total_sessions,items:p.items,description:p.description,has_online:p.has_online};});
     const all=sList.concat(pList);
     // 第一層:方法;第二層:格式;模式用徽章;跨方法/跨格式套餐 → Combination
     const isCombo=function(x){return x.cat==="mixed"||x.mth==="cross";};

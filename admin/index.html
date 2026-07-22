@@ -283,8 +283,8 @@
       <label>Package name</label><input type="text" id="pm-name" placeholder="Starter Bundle" />
       <div class="row3">
         <div><label>Price (£)</label><input type="number" id="pm-price" min="0" placeholder="450" /></div>
-        <div><label>Valid days</label><input type="number" id="pm-validdays" min="1" placeholder="90" /></div>
-        <div><label>Validity label</label><input type="text" id="pm-valid" placeholder="Valid 3 months" /></div>
+        <div><label>Valid days</label><input type="number" id="pm-validdays" min="1" placeholder="30" /></div>
+        <div style="display:flex;align-items:flex-end;"><p class="muted" style="font-size:.78rem;margin-bottom:.9rem;">Credits expire this many days after purchase (default 30).</p></div>
       </div>
       <label>Short description</label><input type="text" id="pm-desc" placeholder="Private ×5 + Gyrokinesis ×3" />
       <label>Included single courses</label>
@@ -653,23 +653,23 @@ function renderPackageProducts(list){
   $("pm-list").innerHTML='<table><thead><tr><th>Name</th><th>Includes</th><th>Price</th><th>Validity</th><th></th></tr></thead><tbody>'+
     list.map(p=>{
       const inc=(p.items||[]).map(it=>esc(it.course_name||"")+" ×"+it.qty).join(", ");
-      return `<tr><td>${esc(p.name||"")}</td><td>${inc}</td><td>${CURRENCY}${p.price}</td><td>${esc(p.valid_label||(p.valid_days+"d"))}</td>
+      return `<tr><td>${esc(p.name||"")}</td><td>${inc}</td><td>${CURRENCY}${p.price}</td><td>${(Number(p.valid_days)||30)} days</td>
       <td style="white-space:nowrap;"><button class="btn btn--sm" onclick='editPm(${esc(JSON.stringify(p))})'>Edit</button>
       <button class="btn btn--sm btn--danger" onclick="deletePm('${p.rowNum}')">Del</button></td></tr>`;
     }).join("")+'</tbody></table>';
 }
 function editPm(p){
   $("pm-row").value=p.rowNum||""; $("pm-name").value=p.name||""; $("pm-price").value=p.price||"";
-  $("pm-validdays").value=p.valid_days||""; $("pm-valid").value=p.valid_label||""; $("pm-desc").value=p.description||"";
+  $("pm-validdays").value=p.valid_days||""; $("pm-desc").value=p.description||"";
   $("pm-items").innerHTML=""; (p.items&&p.items.length?p.items:[{}]).forEach(it=>addPmItem(it.course_id,it.qty));
   $("pm-form-title").textContent="Edit package"; $("pm-cancel").classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"});
 }
-function resetPmForm(){ ["pm-row","pm-name","pm-price","pm-validdays","pm-valid","pm-desc"].forEach(i=>$(i).value=""); $("pm-items").innerHTML=""; addPmItem(); $("pm-form-title").textContent="Add a package"; $("pm-cancel").classList.add("hidden"); setStatus("pm-status","",""); }
+function resetPmForm(){ ["pm-row","pm-name","pm-price","pm-validdays","pm-desc"].forEach(i=>$(i).value=""); $("pm-items").innerHTML=""; addPmItem(); $("pm-form-title").textContent="Add a package"; $("pm-cancel").classList.add("hidden"); setStatus("pm-status","",""); }
 async function savePackageProduct(){
   const items=collectPmItems();
   const product={ rowNum:$("pm-row").value||undefined, name:$("pm-name").value.trim(),
-    price:Number($("pm-price").value)||0, valid_days:Number($("pm-validdays").value)||0,
-    valid_label:$("pm-valid").value.trim(), description:$("pm-desc").value.trim(), items:items };
+    price:Number($("pm-price").value)||0, valid_days:Number($("pm-validdays").value)||30,
+    description:$("pm-desc").value.trim(), items:items };
   if(!product.name) return setStatus("pm-status","Package name is required","err");
   if(!items.length) return setStatus("pm-status","Add at least one course with a quantity","err");
   const b=$("pm-save"); b.disabled=true; b.textContent="Saving…";

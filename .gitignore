@@ -2,6 +2,8 @@
 .DS_Store
 Thumbs.db
 *.log
+*.bak
+*.tmp
 .vscode/
 
 # 機密(此公開 repo 絕不應出現以下檔案)

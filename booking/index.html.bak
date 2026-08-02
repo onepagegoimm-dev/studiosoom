@@ -408,11 +408,7 @@ async function loadAccount(){
     if(member.name) $("hello").textContent="Welcome back, "+member.name;
     renderCredits(); renderBookings(); renderRequestCredits(); renderMyRequests();
     updateReqLeft(requestsLeftToday);
-  }catch(e){
-    toast("Please refresh the page and try again.");
-    var _m='<p class="muted">Please refresh the page and try again.</p>';
-    ["credits","bookings","my-requests"].forEach(function(id){ var el=$(id); if(el) el.innerHTML=_m; });
-  }
+  }catch(e){ toast("Could not load your account"); }
 }
 function usableCredits(){ return packages.filter(p=>p.status==="active" && p.remaining_sessions>0); }
 function renderCredits(){
@@ -834,7 +830,7 @@ async function rsLoadSlots(){
   $("rs-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Loading…</span>';
   try{ var d=await api({action:"getTimeSlots",date:date}); var slots=(d&&d.slots)||[];
     $("rs-slots").innerHTML=slots.length?slots.map(function(s){return '<span class="slot" onclick="pickRsSlot(this,\''+s.time_slot+'\')">'+s.time_slot+'<span class="cap">'+s.remaining+' left</span></span>';}).join(""):'<span class="muted" style="font-size:.88rem;">No open times that day.</span>';
-  }catch(e){ $("rs-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Please refresh the page and try again.</span>'; }
+  }catch(e){ $("rs-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Could not load times.</span>'; }
 }
 function pickRsSlot(el,t){ rsSlot=t; document.querySelectorAll("#rs-slots .slot").forEach(function(s){s.classList.remove("sel");}); el.classList.add("sel"); }
 async function submitReschedule(){

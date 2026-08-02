@@ -903,7 +903,7 @@ async function applyReschedule(){
 var annList=[];
 async function loadAnnouncements(){
   try{ const d=await api({action:"adminListAnnouncements",token}); annList=(d&&d.announcements)||[]; renderAnnouncements(); }
-  catch(e){ $("ann-list").innerHTML='<p class="muted">Please refresh the page and try again.</p>'; }
+  catch(e){ $("ann-list").innerHTML='<p class="muted">Could not load announcements.</p>'; }
 }
 function renderAnnouncements(){
   if(!annList.length){ $("ann-list").innerHTML='<p class="muted">No announcements yet.</p>'; return; }
@@ -953,7 +953,7 @@ async function loadSettings(){
     $("set-bank").value=s.bank_details||""; $("set-notify").value=s.notify_email||"";
     $("set-contact").value=s.contact_line||""; $("set-maxreq").value=s.max_requests_per_day||"";
     setStatus("set-status","","");
-  }catch(e){ setStatus("set-status","Please refresh the page and try again","err"); }
+  }catch(e){ setStatus("set-status","Could not load settings","err"); }
 }
 async function saveSettings(){
   const settings={ bank_details:$("set-bank").value, notify_email:$("set-notify").value.trim(),
@@ -969,7 +969,7 @@ async function saveSettings(){
 // ── services ──
 async function loadServices(){
   try{ const d=await api({action:"adminListServices",token}); services=d.services||[]; renderServices(); }
-  catch(e){ $("svc-list").innerHTML='<p class="muted">Please refresh the page and try again.</p>'; }
+  catch(e){ $("svc-list").innerHTML='<p class="muted">Could not load services.</p>'; }
 }
 function renderServices(){
   if(!services.length){ $("svc-list").innerHTML='<p class="muted">No services yet.</p>'; return; }

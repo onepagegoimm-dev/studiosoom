@@ -263,10 +263,15 @@
       <textarea id="set-bank" rows="4" placeholder="Account name: Studio Soom&#10;Bank: ...&#10;Sort code: 00-00-00&#10;Account no.: 12345678"></textarea>
       <label>Notification email — new orders &amp; requests (blank = first admin)</label>
       <input type="email" id="set-notify" placeholder="studio@email.com" />
+      <label>Sender address — verified "send mail as" alias (blank = script owner's Gmail)</label>
+      <input type="email" id="set-mailfrom" placeholder="book@studiosoom.co.uk" />
+      <p class="muted" style="font-size:.78rem;margin:-.5rem 0 1rem;">Only works after the alias is verified in the script owner's Gmail (Settings → Accounts → "Send mail as"). If not verified, emails fall back to the default sender automatically.</p>
       <label>Contact line shown to customers</label>
       <input type="text" id="set-contact" placeholder="+44 7444 037045 (WhatsApp) / book@studiosoom.co.uk" />
       <label>Max booking requests per customer per day</label>
       <input type="number" id="set-maxreq" min="1" max="20" placeholder="5" style="max-width:140px;" />
+      <label>Max unpaid orders per customer (blocks ordering without paying)</label>
+      <input type="number" id="set-maxpend" min="1" max="20" placeholder="3" style="max-width:140px;" />
       <div style="display:flex;gap:.6rem;margin-top:.6rem;">
         <button class="btn btn--solid" id="set-save" onclick="saveSettings()">Save settings</button>
       </div>
@@ -952,12 +957,14 @@ async function loadSettings(){
     const s=d.settings||{};
     $("set-bank").value=s.bank_details||""; $("set-notify").value=s.notify_email||"";
     $("set-contact").value=s.contact_line||""; $("set-maxreq").value=s.max_requests_per_day||"";
+    $("set-maxpend").value=s.max_pending_orders||""; $("set-mailfrom").value=s.mail_from||"";
     setStatus("set-status","","");
   }catch(e){ setStatus("set-status","Please refresh the page and try again","err"); }
 }
 async function saveSettings(){
   const settings={ bank_details:$("set-bank").value, notify_email:$("set-notify").value.trim(),
-    contact_line:$("set-contact").value.trim(), max_requests_per_day:$("set-maxreq").value.trim() };
+    contact_line:$("set-contact").value.trim(), max_requests_per_day:$("set-maxreq").value.trim(),
+    max_pending_orders:$("set-maxpend").value.trim(), mail_from:$("set-mailfrom").value.trim() };
   const btn=$("set-save"); btn.disabled=true; btn.textContent="Saving…";
   try{ const d=await api({action:"adminSaveSettings",token,settings});
     if(d.success){ toast("Settings saved ✓"); setStatus("set-status","Saved — changes take effect immediately.","ok"); }

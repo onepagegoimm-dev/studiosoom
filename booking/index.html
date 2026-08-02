@@ -120,6 +120,11 @@
   .dp-day.dp-sel{background:var(--ink);color:#fff;}
   .dp-day:disabled{color:#cfc9bf;cursor:default;}
   .dp-day:disabled:hover{background:none;}
+  /* 開課提示(改期彈窗):有開放時段的日子畫綠點,沒有的變灰(仍可點,配合備註提出其他時間) */
+  .dp-day{position:relative;}
+  .dp-day.dp-has::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:1px;width:4px;height:4px;border-radius:50%;background:var(--ok);}
+  .dp-day.dp-sel.dp-has::after{background:#fff;}
+  .dp-day.dp-off{color:#cfc9bf;}
   .dp-foot{display:flex;justify-content:space-between;margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--line);}
   .dp-clear,.dp-today{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.8rem;font-family:inherit;}
   .dp-clear:hover,.dp-today:hover{color:var(--ink);text-decoration:underline;}
@@ -276,6 +281,7 @@
     <p class="muted" id="rs-cur" style="font-size:.9rem;margin:.4rem 0 1rem;"></p>
     <label>New date you'd like</label>
     <input type="hidden" id="rs-date"><div class="dpick" data-for="rs-date"></div>
+    <p class="muted" style="font-size:.78rem;margin:.35rem 0 .8rem;display:flex;align-items:center;gap:.4rem;"><i class="dot ok" style="width:7px;height:7px;"></i>Days with open times for this course</p>
     <label>Choose a time</label>
     <div class="slots" id="rs-slots"><span class="muted" style="font-size:.88rem;">Choose a date first.</span></div>
     <label>Reason / note (optional)</label>
@@ -758,6 +764,27 @@ function dpRender(id){
   d.pop.querySelectorAll(".dp-day[data-d]").forEach(function(bn){ bn.onclick=function(e){ e.stopPropagation(); dpPick(id,bn.getAttribute("data-d")); }; });
   d.pop.querySelector(".dp-clear").onclick=function(e){ e.stopPropagation(); dpPick(id,""); };
   d.pop.querySelector(".dp-today").onclick=function(e){ e.stopPropagation(); var t=new Date(), mn=dpParse(dpMinOf(id)); if(mn&&t<mn) return; dpPick(id,dpStr(t)); };
+  dpApplyAvail(id);
+}
+// ── 日期選擇器的開課提示:availFn(from,to) 回傳 {日期:開放時段數},逐月查詢並快取 ──
+var _dpAvailCache={};
+function dpSetAvailFn(id,fn,keyExtra){ var d=_dp[id]; if(d){ d.availFn=fn; d.availKey=String(keyExtra==null?"":keyExtra); } }
+function dpApplyAvail(id){
+  var d=_dp[id]; if(!d||!d.availFn) return;
+  var y=d.view.getFullYear(), m=d.view.getMonth();
+  var from=y+"-"+dpPad(m+1)+"-01", to=y+"-"+dpPad(m+1)+"-"+dpPad(new Date(y,m+1,0).getDate());
+  var key=id+"|"+d.availKey+"|"+from;
+  var mark=function(days){
+    if(!days) return;                                            // 查詢失敗 → 不標示(全部維持可點)
+    if(d.view.getFullYear()!==y||d.view.getMonth()!==m) return;  // 已翻到別的月份 → 不套用
+    d.pop.querySelectorAll(".dp-day[data-d]").forEach(function(bn){
+      var open=days[bn.getAttribute("data-d")]||0;
+      bn.classList.toggle("dp-has",open>0);
+      bn.classList.toggle("dp-off",open<=0);
+    });
+  };
+  if(key in _dpAvailCache){ mark(_dpAvailCache[key]); return; }
+  d.availFn(from,to).then(function(days){ if(days) _dpAvailCache[key]=days; mark(days); });
 }
 function dpPick(id,ds){ var d=_dp[id]; d.input.value=ds; dpSyncLabel(id); d.pop.classList.add("hidden"); if(d.onChange) d.onChange(); }
 function dpSet(id,v){ var d=_dp[id]; if(d){ d.input.value=v||""; dpSyncLabel(id); } else { var el=document.getElementById(id); if(el) el.value=v||""; } }
@@ -821,18 +848,27 @@ async function pubSelectDay(ds){
 }
 
 // ── 改期需求(顧客在已排定課程提出新日期 → 管理員確認套用)──
-var rsBookingId="", rsSlot=null;
-function openResched(bid){
+var rsBookingId="", rsSlot=null, rsServiceId="";
+async function openResched(bid){
   var b=bookings.find(function(x){return x.booking_id===bid;}); if(!b) return;
   rsBookingId=bid; rsSlot=null;
+  // 依原預約課程篩選可換的時段與月曆圓點;對不到課程時回空 = 通用(顯示全部開放時段)
+  if(!singles.length){ try{ var sd=await api({action:"getServices"}); singles=(sd&&sd.services)||[]; }catch(e){} }
+  rsServiceId=svcIdForCourse(b.service_name);
+  _dpAvailCache={};  // 每次開啟重新查詢,避免拿到過期的開課狀況
+  dpSetAvailFn("rs-date",rsAvailFn,rsServiceId);
   $("rs-cur").innerHTML="Current booking: <b>"+esc(b.service_name)+"</b> · "+esc(fmtDate(b.booking_date))+" · "+esc(b.booking_time);
   dpSet("rs-date",""); $("rs-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Choose a date first.</span>';
   $("rs-note").value=""; setStatus("rs-status","",""); openModal("resched-modal");
 }
+async function rsAvailFn(from,to){
+  try{ var d=await api({action:"getMonthAvailability",from:from,to:to,service_id:rsServiceId}); return (d&&d.days)||{}; }
+  catch(e){ return null; }
+}
 async function rsLoadSlots(){
   var date=$("rs-date").value; rsSlot=null; if(!date) return;
   $("rs-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Loading…</span>';
-  try{ var d=await api({action:"getTimeSlots",date:date}); var slots=(d&&d.slots)||[];
+  try{ var d=await api({action:"getTimeSlots",date:date,service_id:rsServiceId}); var slots=(d&&d.slots)||[];
     $("rs-slots").innerHTML=slots.length?slots.map(function(s){return '<span class="slot" onclick="pickRsSlot(this,\''+s.time_slot+'\')">'+s.time_slot+'<span class="cap">'+s.remaining+' left</span></span>';}).join(""):'<span class="muted" style="font-size:.88rem;">No open times that day.</span>';
   }catch(e){ $("rs-slots").innerHTML='<span class="muted" style="font-size:.88rem;">Please refresh the page and try again.</span>'; }
 }

@@ -318,7 +318,9 @@ function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_me
 let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複點擊
 const MUTATIONS=["sendVerifyCode","purchaseSingle","purchasePackage","submitBookingRequest"];
 // 唯讀動作才自動重試(連線層失敗時),避免重複送出改資料的請求
-const RETRYABLE_ACTIONS=["getServices","getTimeSlots","getMonthAvailability","getPackageProducts","getAnnouncements","checkMember","getMyAccount"];
+// verifyCode 例外納入:驗證碼比對冪等(重試最壞為 Incorrect code,無扣款 / 下單副作用),
+// 且重試只在「連線失敗」時觸發,拿到正常回應(含 Incorrect code)即停 → 解決驗證時的 Connection failed。
+const RETRYABLE_ACTIONS=["getServices","getTimeSlots","getMonthAvailability","getPackageProducts","getAnnouncements","checkMember","getMyAccount","verifyCode"];
 async function api(payload){
   const isMut=MUTATIONS.indexOf(payload.action)!==-1;
   if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }

@@ -441,7 +441,9 @@ function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_ad
 let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複點擊
 const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus","adminScheduleFromRequest","adminUpdateRequestStatus","adminRescheduleBooking","adminSaveAnnouncement","adminDeleteAnnouncement","adminSaveSettings"];
 // 唯讀動作才自動重試(連線層失敗時),避免重複送出改資料的請求
-const RETRYABLE_ACTIONS=["getCalendarBookings","adminListBookingRequests","adminListAnnouncements","adminListSettings","adminListPackages","adminListPackageProducts","adminListPackageOrders","adminListServices","adminListTimeSlots","getServices","getTimeSlots","getMonthAvailability"];
+// adminVerifyCode 例外納入:管理員驗證碼比對冪等,重試只在連線失敗時觸發、拿到正常回應即停
+// → 解決管理員登入時的 Connection failed。
+const RETRYABLE_ACTIONS=["getCalendarBookings","adminListBookingRequests","adminListAnnouncements","adminListSettings","adminListPackages","adminListPackageProducts","adminListPackageOrders","adminListServices","adminListTimeSlots","getServices","getTimeSlots","getMonthAvailability","adminVerifyCode"];
 async function api(p){
   const isMut=MUTATIONS.indexOf(p.action)!==-1;
   if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }

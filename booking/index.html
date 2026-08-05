@@ -78,7 +78,7 @@
   .modal__box h3{font-size:1.6rem;margin-bottom:.3rem;}
   .req{color:var(--danger);}
   .toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.85rem;padding:.7rem 1.2rem;border-radius:100px;opacity:0;transition:opacity .3s;z-index:80;} .toast.show{opacity:1;}
-  @media(max-width:560px){ .row2{grid-template-columns:1fr;} .bk{flex-direction:column;} .bk .actions{flex-direction:row;align-items:flex-start;} }
+  @media(max-width:560px){ .row2{grid-template-columns:1fr;} .bk{flex-direction:column;} .bk .actions{flex-direction:row;align-items:flex-start;} .topbar{padding:.9rem 1rem;} .topbar a.logo img{height:44px;} }
   /* Request:分段控制 */
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:100px;overflow:hidden;margin-bottom:1rem;}
   .seg__btn{border:0;background:#fff;color:var(--muted);font-family:inherit;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;padding:.55rem 1.1rem;cursor:pointer;}
@@ -320,7 +320,9 @@ const MUTATIONS=["sendVerifyCode","purchaseSingle","purchasePackage","submitBook
 // 唯讀動作才自動重試(連線層失敗時),避免重複送出改資料的請求
 // verifyCode 例外納入:驗證碼比對冪等(重試最壞為 Incorrect code,無扣款 / 下單副作用),
 // 且重試只在「連線失敗」時觸發,拿到正常回應(含 Incorrect code)即停 → 解決驗證時的 Connection failed。
-const RETRYABLE_ACTIONS=["getServices","getTimeSlots","getMonthAvailability","getPackageProducts","getAnnouncements","checkMember","getMyAccount","verifyCode"];
+// submitBookingRequest 亦納入:前端帶 client_request_id、後端冪等(同鍵 10 分鐘內重複呼叫
+// 回放第一次結果,不重複建單 / 寄信),連線失敗自動重試安全 → 解決改期送出後畫面卡在彈窗。
+const RETRYABLE_ACTIONS=["getServices","getTimeSlots","getMonthAvailability","getPackageProducts","getAnnouncements","checkMember","getMyAccount","verifyCode","submitBookingRequest"];
 async function api(payload){
   const isMut=MUTATIONS.indexOf(payload.action)!==-1;
   if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }
@@ -340,6 +342,8 @@ async function api(payload){
   } finally { if(isMut) apiBusy=false; }
 }
 function $(id){ return document.getElementById(id); }
+// 冪等鍵:一次「送出流程」共用同一組(自動重試 / 使用者重按都帶同一鍵),後端以此判斷重複
+function reqUid(){ try{ return crypto.randomUUID(); }catch(e){ return "r"+Date.now().toString(36)+Math.random().toString(36).slice(2,10); } }
 function setStatus(id,m,t){ const e=$(id); e.textContent=m||""; e.className="status"+(t?(" "+t):""); }
 let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
@@ -371,8 +375,17 @@ async function doSendCode(v,first,last,phone){
   try{ const d=await api({action:"sendVerifyCode",email:v,first_name:first,last_name:last,phone:phone});
     if(d.success){ $("code-row").classList.remove("hidden"); $("profile-row").classList.add("hidden"); setStatus("login-status","Code sent — check your inbox.","ok");
       let s=60;b.textContent=s+"s";const t=setInterval(()=>{s--;b.textContent=s+"s";if(s<=0){clearInterval(t);b.disabled=false;b.textContent="Resend";}},1000);
-    } else { setStatus("login-status",d.error||"Could not send code","err"); b.disabled=false; b.textContent="Send code"; }
-  }catch(e){ setStatus("login-status","Connection failed. Check API_URL.","err"); b.disabled=false; b.textContent="Send code"; }
+    } else {
+      // 60 秒內重複要求 → 前一組碼多半已寄出:照樣開放輸入框,信到了就能直接輸入
+      if(d.error&&/wait 60/i.test(d.error)){ $("code-row").classList.remove("hidden"); $("profile-row").classList.add("hidden"); }
+      setStatus("login-status",d.error||"Could not send code","err"); b.disabled=false; b.textContent="Send code";
+    }
+  }catch(e){
+    // 連線失敗不代表沒寄出(請求可能已送達、只是回應遺失):開放輸入框,避免「信到了卻沒地方輸入」
+    $("code-row").classList.remove("hidden"); $("profile-row").classList.add("hidden");
+    setStatus("login-status","Connection problem — if a code arrives by email you can enter it below, or resend in a minute.","err");
+    b.disabled=false; b.textContent="Resend";
+  }
 }
 async function verifyCode(){
   const v=$("login-email").value.trim(), code=$("login-code").value.trim();
@@ -568,8 +581,9 @@ async function submitRequest(){
   if(!note) return setStatus("req-status","Please write a short note","err");
   const btn=$("req-btn"); btn.disabled=true; btn.textContent="Sending…";
   try{
-    const d=await api({action:"submitBookingRequest",email,sessionToken,package_id:$("rq-credit").value,note});
-    if(d.success){ toast("Request sent ✓"); $("rq-note").value=""; setStatus("req-status","","");
+    if(!submitRequest._rid) submitRequest._rid=reqUid();
+    const d=await api({action:"submitBookingRequest",email,sessionToken,package_id:$("rq-credit").value,note,client_request_id:submitRequest._rid});
+    if(d.success){ submitRequest._rid=null; toast("Request sent ✓"); $("rq-note").value=""; setStatus("req-status","","");
       if(typeof d.requestsLeftToday==="number"){ requestsLeftToday=d.requestsLeftToday; updateReqLeft(requestsLeftToday); }
       await loadAccount();
     } else setStatus("req-status",d.error||"Could not send request","err");
@@ -598,8 +612,9 @@ async function sendWhatsOnRequest(){
   const note=($("wo-note")&&$("wo-note").value.trim())||"";
   const btn=$("wo-send"); if(btn){ btn.disabled=true; btn.textContent="Sending…"; }
   try{
-    const d=await api({action:"submitBookingRequest",email,sessionToken,package_id:credId,requested_date:woSelected,requested_time:woSlot,note});
-    if(d.success){ toast("Request sent ✓"); if(typeof d.requestsLeftToday==="number") requestsLeftToday=d.requestsLeftToday; await loadAccount(); switchTab("account"); }
+    if(!sendWhatsOnRequest._rid) sendWhatsOnRequest._rid=reqUid();
+    const d=await api({action:"submitBookingRequest",email,sessionToken,package_id:credId,requested_date:woSelected,requested_time:woSlot,note,client_request_id:sendWhatsOnRequest._rid});
+    if(d.success){ sendWhatsOnRequest._rid=null; toast("Request sent ✓"); if(typeof d.requestsLeftToday==="number") requestsLeftToday=d.requestsLeftToday; await loadAccount(); switchTab("account"); }
     else { setStatus("wo-status",d.error||"Could not send request","err"); if(btn){ btn.disabled=false; btn.textContent="Send request"; } }
   }catch(e){ setStatus("wo-status","Connection failed","err"); if(btn){ btn.disabled=false; btn.textContent="Send request"; } }
 }
@@ -850,10 +865,11 @@ async function pubSelectDay(ds){
 }
 
 // ── 改期需求(顧客在已排定課程提出新日期 → 管理員確認套用)──
-var rsBookingId="", rsSlot=null, rsServiceId="";
+var rsBookingId="", rsSlot=null, rsServiceId="", rsReqId="";
 async function openResched(bid){
   var b=bookings.find(function(x){return x.booking_id===bid;}); if(!b) return;
   rsBookingId=bid; rsSlot=null;
+  rsReqId=reqUid();  // 冪等鍵:這次改期流程內不論自動重試或重按,都用同一組,後端不會重複建單
   // 依原預約課程篩選可換的時段與月曆圓點;對不到課程時回空 = 通用(顯示全部開放時段)
   if(!singles.length){ try{ var sd=await api({action:"getServices"}); singles=(sd&&sd.services)||[]; }catch(e){} }
   rsServiceId=svcIdForCourse(b.service_name);
@@ -880,10 +896,11 @@ async function submitReschedule(){
   if(!date && !note) return setStatus("rs-status","Choose a new date, or add a note","err");
   var btn=$("rs-send"); btn.disabled=true; btn.textContent="Sending…";
   try{
-    var d=await api({action:"submitBookingRequest",email:email,sessionToken:sessionToken,type:"reschedule",booking_id_ref:rsBookingId,requested_date:date,requested_time:rsSlot||"",note:note});
-    if(d.success){ toast("Change request sent ✓"); closeModal("resched-modal"); await loadAccount(); }
+    var d=await api({action:"submitBookingRequest",email:email,sessionToken:sessionToken,type:"reschedule",booking_id_ref:rsBookingId,requested_date:date,requested_time:rsSlot||"",note:note,client_request_id:rsReqId});
+    // 成功=關彈窗 + 轉到 My account(Sent requests 看得到剛送出的需求)→ 明確的「完成」畫面
+    if(d.success){ toast("Change request sent ✓"); closeModal("resched-modal"); await loadAccount(); switchTab("account"); }
     else setStatus("rs-status",d.error||"Could not send request","err");
-  }catch(e){ setStatus("rs-status","Connection failed","err"); }
+  }catch(e){ setStatus("rs-status","Connection problem — your request may already be sent. Please check My account → Sent requests before trying again.","err"); }
   btn.disabled=false; btn.textContent="Send change request";
 }
 

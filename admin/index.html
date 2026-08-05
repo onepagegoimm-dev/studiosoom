@@ -21,7 +21,8 @@
   h1,h2,h3{font-family:var(--font-display);font-weight:500;line-height:1.15;}
   a{color:inherit;}
   .topbar{display:flex;align-items:center;justify-content:space-between;padding:1rem clamp(1rem,4vw,2rem);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;}
-  .topbar .logo{font-family:var(--font-display);font-size:1.35rem;font-weight:600;}
+  .topbar .logo{font-family:var(--font-display);font-size:1.35rem;font-weight:600;display:flex;align-items:center;gap:.5rem;}
+  .topbar .logo img{height:48px;width:auto;display:block;}
   .topbar .logo small{display:block;font-family:var(--font-ui);font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);}
   .topbar .right{display:flex;gap:1rem;align-items:center;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;}
   .topbar button,.topbar a{background:none;border:none;color:var(--muted);font-family:inherit;font-size:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;}
@@ -81,7 +82,7 @@
   table{width:100%;border-collapse:collapse;font-size:.86rem;} th,td{text-align:left;padding:.5rem .4rem;border-bottom:1px solid var(--line);} th{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
   .toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.84rem;padding:.7rem 1.2rem;border-radius:100px;opacity:0;transition:opacity .3s;z-index:80;}
   .toast.show{opacity:1;}
-  @media(max-width:680px){ .row2,.row3{grid-template-columns:1fr;} .cell{min-height:64px;} .legend{font-size:.66rem;} }
+  @media(max-width:680px){ .row2,.row3{grid-template-columns:1fr;} .cell{min-height:64px;} .legend{font-size:.66rem;} .topbar{padding:.9rem 1rem;} .topbar .logo img{height:40px;} }
   /* 排程用時段選擇 */
   .slots{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;}
   .slot{border:1px solid var(--line);background:#fff;padding:.5rem .85rem;font-size:.9rem;border-radius:2px;cursor:pointer;transition:.2s;}
@@ -117,7 +118,7 @@
 <body>
 
 <div class="topbar">
-  <div class="logo" style="display:flex;align-items:center;gap:.5rem;"><img src="../assets/soom-logo-dark.png" alt="Studio Soom" style="height:48px;width:auto;display:block;" /><small>Admin</small></div>
+  <div class="logo"><img src="../assets/soom-logo-dark.png" alt="Studio Soom" /><small>Admin</small></div>
   <div class="right">
     <a href="../index.html">Site</a>
     <button id="signout" class="hidden" onclick="signOut()">Sign out</button>
@@ -480,8 +481,17 @@ async function sendAdminCode(){
   try{ const d=await api({action:"adminSendCode",email});
     if(d.success){ $("code-row").classList.remove("hidden"); setStatus("login-status","If that email is an admin, a code has been sent.","ok");
       let s=60;b.textContent=s+"s";const t=setInterval(()=>{s--;b.textContent=s+"s";if(s<=0){clearInterval(t);b.disabled=false;b.textContent="Resend";}},1000);
-    } else { setStatus("login-status",d.error||"Could not send","err"); b.disabled=false; b.textContent="Send code"; }
-  }catch(e){ setStatus("login-status","Connection failed. Check API_URL.","err"); b.disabled=false; b.textContent="Send code"; }
+    } else {
+      // 60 秒內重複要求 → 前一組碼多半已寄出:照樣開放輸入框,信到了就能直接輸入
+      if(d.error&&/wait 60/i.test(d.error)) $("code-row").classList.remove("hidden");
+      setStatus("login-status",d.error||"Could not send","err"); b.disabled=false; b.textContent="Send code";
+    }
+  }catch(e){
+    // 連線失敗不代表沒寄出(請求可能已送達、只是回應遺失):開放輸入框,避免「信到了卻沒地方輸入」
+    $("code-row").classList.remove("hidden");
+    setStatus("login-status","Connection problem — if a code arrives by email you can enter it below, or resend in a minute.","err");
+    b.disabled=false; b.textContent="Resend";
+  }
 }
 async function verifyAdminCode(){
   const email=$("login-email").value.trim(), code=$("login-code").value.trim();

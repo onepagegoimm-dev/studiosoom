@@ -406,7 +406,8 @@ function backToLogin(msg){
 async function enterApp(){
   $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("signout").classList.remove("hidden");
   dpMin("wo-date",todayStr()); dpMin("rs-date",todayStr());
-  await loadAccount(); loadBuy();
+  loadBuy();            // 與帳戶資料並行載入(原本等帳戶載完才開始)
+  await loadAccount();
   var h=(location.hash||"").replace("#",""); if(h==="request") h="whatson"; // #request 已併入 Booking availability
   if(h==="buy"||h==="whatson"||h==="account") switchTab(h);
   else switchTab("whatson");
@@ -465,8 +466,9 @@ function renderBookings(){
 async function loadBuy(){
   $("buy-products").innerHTML='<p class="muted">Loading…</p>';
   try{
-    const sd=await api({action:"getServices"}); singles=(sd&&sd.services)||[];
-    const pd=await api({action:"getPackageProducts"}); products=(pd&&pd.products)||[];
+    // 兩支讀取並行(原本一支等完才發下一支)
+    const [sd,pd]=await Promise.all([api({action:"getServices"}),api({action:"getPackageProducts"})]);
+    singles=(sd&&sd.services)||[]; products=(pd&&pd.products)||[];
     renderBuy();
   }catch(e){ $("buy-products").innerHTML='<p class="muted">Please refresh the page and try again.</p>'; }
 }

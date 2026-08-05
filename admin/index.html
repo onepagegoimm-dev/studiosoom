@@ -657,8 +657,9 @@ function renderUsers(){
 let pmCourses = [];   // 單堂課程清單(供下拉)
 async function loadPackageProducts(){
   try{
-    const cs=await api({action:"adminListServices",token}); pmCourses=(cs&&cs.services)||[];
-    const d=await api({action:"adminListPackageProducts",token}); renderPackageProducts(d.products||[]);
+    const [cs,d]=await Promise.all([api({action:"adminListServices",token}),api({action:"adminListPackageProducts",token})]); // 並行
+    pmCourses=(cs&&cs.services)||[];
+    renderPackageProducts(d.products||[]);
     if(!document.querySelector("#pm-items .pm-item")) addPmItem();
   }catch(e){ $("pm-list").innerHTML='<p class="muted">Please refresh the page and try again.</p>'; }
 }
@@ -737,8 +738,10 @@ async function updateOrder(rowNum,status){
 // ── booking requests(客戶需求 → 代客排程) ──
 async function loadRequests(){
   try{
-    if(!services.length){ const sd=await api({action:"adminListServices",token}); services=(sd&&sd.services)||[]; }
-    const d=await api({action:"adminListBookingRequests",token}); reqList=d.requests||[]; renderRequests();
+    const needSvc=!services.length; // 需要課程清單時與需求清單並行抓(原本一支等一支)
+    const [sd,d]=await Promise.all([needSvc?api({action:"adminListServices",token}):Promise.resolve(null),api({action:"adminListBookingRequests",token})]);
+    if(needSvc) services=(sd&&sd.services)||[];
+    reqList=d.requests||[]; renderRequests();
   }catch(e){ $("requests-list").innerHTML='<p class="muted">Please refresh the page and try again.</p>'; }
 }
 // 課程名 → service_id(用於依課程篩選時段);找不到回空=通用
@@ -1017,8 +1020,9 @@ function populateSlotCourse(){
 }
 async function loadTimeSlots(){
   try{
-    const sd=await api({action:"adminListServices",token}); services=(sd&&sd.services)||[]; populateSlotCourse();
-    const d=await api({action:"adminListTimeSlots",token}); renderTimeSlots(d.slots||[]);
+    const [sd,d]=await Promise.all([api({action:"adminListServices",token}),api({action:"adminListTimeSlots",token})]); // 並行
+    services=(sd&&sd.services)||[]; populateSlotCourse();
+    renderTimeSlots(d.slots||[]);
   }catch(e){ $("ts-list").innerHTML='<p class="muted">Please refresh the page and try again.</p>'; }
 }
 function renderTimeSlots(slots){

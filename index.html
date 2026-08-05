@@ -213,7 +213,10 @@ async function api(p){
     try{
       var r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(p)});
       if(!r.ok) throw new Error("HTTP "+r.status);
-      return JSON.parse(await r.text());
+      var d=JSON.parse(await r.text());
+      // GAS 轉址怪癖(行動網路偶發):POST 的結果被 GET 誤觸 doGet 取代 → 視同連線失敗重試,不外洩給使用者
+      if(d&&d.error==="Please use POST") throw new Error("transport-get");
+      return d;
     }catch(e){ lastErr=e; if(i<attempts-1) await new Promise(function(res){ setTimeout(res,500*(i+1)); }); }
   }
   throw lastErr;

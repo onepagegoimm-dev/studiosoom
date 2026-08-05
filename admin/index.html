@@ -80,7 +80,8 @@
   .note-toggle:hover{color:var(--ink);text-decoration:underline;}
   .note-body{margin-top:.4rem;background:var(--bg-warm);border-left:2px solid var(--ink);padding:.5rem .7rem;font-size:.85rem;white-space:pre-wrap;color:var(--ink-soft);border-radius:0 3px 3px 0;}
   table{width:100%;border-collapse:collapse;font-size:.86rem;} th,td{text-align:left;padding:.5rem .4rem;border-bottom:1px solid var(--line);} th{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
-  .toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.84rem;padding:.7rem 1.2rem;border-radius:100px;opacity:0;transition:opacity .3s;z-index:80;}
+  /* toast:短訊息呈藥丸形,長訊息自動變圓角矩形換行(不會撐成大圓球) */
+  .toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.84rem;line-height:1.5;padding:.7rem 1.2rem;border-radius:22px;opacity:0;transition:opacity .3s;z-index:80;max-width:min(92vw,420px);width:max-content;text-align:center;word-break:break-word;}
   .toast.show{opacity:1;}
   @media(max-width:680px){ .row2,.row3{grid-template-columns:1fr;} .cell{min-height:64px;} .legend{font-size:.66rem;} .topbar{padding:.9rem 1rem;} .topbar .logo img{height:40px;} }
   /* 排程用時段選擇 */
@@ -441,10 +442,16 @@ function restoreSession(){ try{ const s=JSON.parse(localStorage.getItem('soom_ad
 
 let apiBusy=false;  // 防重複送出:有寫入請求進行中時,擋下重複點擊
 const MUTATIONS=["adminSendCode","adminSaveService","adminDeleteService","adminSavePackageProduct","adminDeletePackageProduct","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminUpdateOrderStatus","adminScheduleFromRequest","adminUpdateRequestStatus","adminRescheduleBooking","adminSaveAnnouncement","adminDeleteAnnouncement","adminSaveSettings"];
-// 唯讀動作才自動重試(連線層失敗時),避免重複送出改資料的請求
-// adminVerifyCode 例外納入:管理員驗證碼比對冪等,重試只在連線失敗時觸發、拿到正常回應即停
-// → 解決管理員登入時的 Connection failed。
-const RETRYABLE_ACTIONS=["getCalendarBookings","adminListBookingRequests","adminListAnnouncements","adminListSettings","adminListPackages","adminListPackageProducts","adminListPackageOrders","adminListServices","adminListTimeSlots","getServices","getTimeSlots","getMonthAvailability","adminVerifyCode"];
+// 自動重試名單(僅連線層失敗觸發;拿到正常回應即停):
+// - 唯讀動作全部納入
+// - adminVerifyCode:後端成功結果可重放 10 分鐘 → 冪等
+// - adminSendCode:後端 60 秒限流 + 同碼重寄 → 重試最壞收到「wait 60」,不會作廢已寄出的碼
+// - adminSave* / adminUpdate*Status:同值重寫 → 冪等
+// - 時段類:adminGenerateTimeSlots(重複自動跳過)/ adminDedupeTimeSlots(冪等)/
+//   adminDeleteTimeSlot(後端核對該列日期時間,列位移會擋下 → 不會誤刪)
+// 刻意不納入:adminScheduleFromRequest / adminRescheduleBooking(扣點 / 調名額,非冪等)、
+// adminDeleteService / adminDeletePackageProduct / adminDeleteAnnouncement(只帶 rowNum,重試有誤刪風險)
+const RETRYABLE_ACTIONS=["getCalendarBookings","adminListBookingRequests","adminListAnnouncements","adminListSettings","adminListPackages","adminListPackageProducts","adminListPackageOrders","adminListServices","adminListTimeSlots","getServices","getTimeSlots","getMonthAvailability","adminVerifyCode","adminSendCode","adminSaveTimeSlot","adminGenerateTimeSlots","adminDeleteTimeSlot","adminDedupeTimeSlots","adminSaveService","adminSavePackageProduct","adminSaveAnnouncement","adminSaveSettings","adminUpdateOrderStatus","adminUpdateRequestStatus"];
 async function api(p){
   const isMut=MUTATIONS.indexOf(p.action)!==-1;
   if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }
@@ -455,7 +462,10 @@ async function api(p){
       try{
         const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(p)});
         if(!r.ok) throw new Error("HTTP "+r.status);
-        return JSON.parse(await r.text());
+        const d=JSON.parse(await r.text());
+        // GAS 轉址怪癖(行動網路偶發):POST 的結果被 GET 誤觸 doGet 取代 → 視同連線失敗重試,不外洩給使用者
+        if(d&&d.error==="Please use POST") throw new Error("transport-get");
+        return d;
       }catch(e){ lastErr=e; if(i<attempts-1) await new Promise(function(res){ setTimeout(res,500*(i+1)); }); }
     }
     throw lastErr;
@@ -465,7 +475,7 @@ async function api(p){
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function setStatus(id,m,t){ const e=$(id); e.textContent=m||""; e.className="status"+(t?(" "+t):""); }
-let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2000); }
+let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),Math.min(6000,Math.max(2200,String(m).length*60))); } // 訊息越長顯示越久(2.2~6 秒)
 function pad(n){ return String(n).padStart(2,"0"); }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function fmtLong(s){ try{ return new Date(s+"T00:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); }catch(e){ return s; } }

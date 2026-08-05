@@ -77,7 +77,8 @@
   .modal__box{background:#fff;max-width:460px;width:100%;padding:1.8rem;border-radius:4px;max-height:90vh;overflow:auto;}
   .modal__box h3{font-size:1.6rem;margin-bottom:.3rem;}
   .req{color:var(--danger);}
-  .toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.85rem;padding:.7rem 1.2rem;border-radius:100px;opacity:0;transition:opacity .3s;z-index:80;} .toast.show{opacity:1;}
+  /* toast:短訊息呈藥丸形,長訊息自動變圓角矩形換行(不會撐成大圓球) */
+  .toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:.85rem;line-height:1.5;padding:.7rem 1.2rem;border-radius:22px;opacity:0;transition:opacity .3s;z-index:80;max-width:min(92vw,420px);width:max-content;text-align:center;word-break:break-word;} .toast.show{opacity:1;}
   @media(max-width:560px){ .row2{grid-template-columns:1fr;} .bk{flex-direction:column;} .bk .actions{flex-direction:row;align-items:flex-start;} .topbar{padding:.9rem 1rem;} .topbar a.logo img{height:44px;} }
   /* Request:分段控制 */
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:100px;overflow:hidden;margin-bottom:1rem;}
@@ -322,7 +323,8 @@ const MUTATIONS=["sendVerifyCode","purchaseSingle","purchasePackage","submitBook
 // 且重試只在「連線失敗」時觸發,拿到正常回應(含 Incorrect code)即停 → 解決驗證時的 Connection failed。
 // submitBookingRequest 亦納入:前端帶 client_request_id、後端冪等(同鍵 10 分鐘內重複呼叫
 // 回放第一次結果,不重複建單 / 寄信),連線失敗自動重試安全 → 解決改期送出後畫面卡在彈窗。
-const RETRYABLE_ACTIONS=["getServices","getTimeSlots","getMonthAvailability","getPackageProducts","getAnnouncements","checkMember","getMyAccount","verifyCode","submitBookingRequest"];
+// sendVerifyCode 亦納入:後端 60 秒限流 + 同碼重寄 → 重試最壞收到「wait 60」(此時輸入框照樣開啟)。
+const RETRYABLE_ACTIONS=["getServices","getTimeSlots","getMonthAvailability","getPackageProducts","getAnnouncements","checkMember","getMyAccount","verifyCode","submitBookingRequest","sendVerifyCode"];
 async function api(payload){
   const isMut=MUTATIONS.indexOf(payload.action)!==-1;
   if(isMut){ if(apiBusy) return {error:"Processing — please wait…"}; apiBusy=true; }
@@ -334,6 +336,8 @@ async function api(payload){
         const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});
         if(!res.ok) throw new Error("HTTP "+res.status);
         const d=JSON.parse(await res.text());
+        // GAS 轉址怪癖(行動網路偶發):POST 的結果被 GET 誤觸 doGet 取代 → 視同連線失敗重試,不外洩給使用者
+        if(d&&d.error==="Please use POST") throw new Error("transport-get");
         if(d && d.error && sessionToken && /sign in again/i.test(d.error)) backToLogin("Your session timed out — please verify your email again.");
         return d;
       }catch(e){ lastErr=e; if(i<attempts-1) await new Promise(function(res2){ setTimeout(res2,500*(i+1)); }); }
@@ -345,7 +349,7 @@ function $(id){ return document.getElementById(id); }
 // 冪等鍵:一次「送出流程」共用同一組(自動重試 / 使用者重按都帶同一鍵),後端以此判斷重複
 function reqUid(){ try{ return crypto.randomUUID(); }catch(e){ return "r"+Date.now().toString(36)+Math.random().toString(36).slice(2,10); } }
 function setStatus(id,m,t){ const e=$(id); e.textContent=m||""; e.className="status"+(t?(" "+t):""); }
-let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
+let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),Math.min(6000,Math.max(2200,String(m).length*60))); } // 訊息越長顯示越久(2.2~6 秒)
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function fmtDate(s){ try{ return new Date(s+"T00:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"});}catch(e){return s;} }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
